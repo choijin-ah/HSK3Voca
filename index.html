@@ -17,8 +17,15 @@
   <div class="tool-inner">
     <input id="searchBox" type="search" placeholder="중국어, 병음, 뜻, 분류명으로 검색">
     <button id="hideMeaning" type="button">뜻 가리기/보이기</button>
+    <button id="toggleChecked" type="button" aria-pressed="false">체크한 단어 숨기기</button>
+    <button id="removeChecked" type="button">체크한 단어 지우기</button>
+    <button id="restoreRemoved" type="button">지운 단어 복구</button>
     <button onclick="window.print()" type="button">인쇄/PDF</button>
     <button id="clearChecks" type="button">체크 초기화</button>
+    <button id="signInGoogle" type="button">Google 로그인</button>
+    <button id="signOutGoogle" type="button" hidden>로그아웃</button>
+    <span class="account" id="accountText">브라우저 저장</span>
+    <span class="sync-status" id="syncStatus">로그인하면 서버 저장</span>
     <span class="progress" id="progressText"></span>
   </div>
 </div>
@@ -4614,38 +4621,319 @@
 
   <div class="footer">Generated from uploaded workbook: 新hsk3급단어.xlsx</div>
 </main>
-<script>
+<script src="firebase-config.js"></script>
+<script type="module">
 const checks = document.querySelectorAll('.word-check');
-function updateProgress(){
-  const total = checks.length;
-  const done = [...checks].filter(c=>c.checked).length;
-  document.getElementById('progressText').textContent = `${done} / ${total}개 체크됨`;
-}
-checks.forEach(c=>{
-  c.checked = localStorage.getItem(c.dataset.key)==='1';
-  c.addEventListener('change',()=>{localStorage.setItem(c.dataset.key,c.checked?'1':'0');updateProgress();});
-});
-updateProgress();
 const search = document.getElementById('searchBox');
-search.addEventListener('input',()=>{
+const toggleCheckedButton = document.getElementById('toggleChecked');
+const removeCheckedButton = document.getElementById('removeChecked');
+const restoreRemovedButton = document.getElementById('restoreRemoved');
+const signInGoogleButton = document.getElementById('signInGoogle');
+const signOutGoogleButton = document.getElementById('signOutGoogle');
+const accountText = document.getElementById('accountText');
+const syncStatus = document.getElementById('syncStatus');
+const hideCheckedKey = 'hsk3-hide-checked';
+const removedWordsKey = 'hsk3-removed-words';
+const firebaseConfig = window.HSK3_FIREBASE_CONFIG || {};
+const firebaseReady = Boolean(
+  firebaseConfig.apiKey &&
+  firebaseConfig.authDomain &&
+  firebaseConfig.projectId &&
+  firebaseConfig.appId &&
+  !String(firebaseConfig.apiKey).includes('YOUR_') &&
+  !String(firebaseConfig.authDomain).includes('YOUR_') &&
+  !String(firebaseConfig.projectId).includes('YOUR_') &&
+  !String(firebaseConfig.appId).includes('YOUR_')
+);
+let hideChecked = localStorage.getItem(hideCheckedKey)==='1';
+let removedKeys = loadRemovedKeys();
+let firebaseApi = null;
+let auth = null;
+let db = null;
+let currentUser = null;
+let saveTimer = null;
+let loadingCloudState = false;
+
+function loadRemovedKeys(){
+  try{
+    return new Set(JSON.parse(localStorage.getItem(removedWordsKey) || '[]'));
+  }catch{
+    return new Set();
+  }
+}
+
+function saveRemovedKeys(){
+  localStorage.setItem(removedWordsKey, JSON.stringify([...removedKeys]));
+}
+
+function setSyncStatus(text){
+  syncStatus.textContent = text || '';
+}
+
+function getCheckedKeys(){
+  return [...checks].filter(c=>c.checked).map(c=>c.dataset.key);
+}
+
+function getStudyState(){
+  return {
+    checkedKeys: getCheckedKeys(),
+    removedKeys: [...removedKeys],
+    hideChecked,
+    version: 1
+  };
+}
+
+function applyStudyState(state){
+  const checkedKeys = new Set(Array.isArray(state.checkedKeys) ? state.checkedKeys : []);
+  const nextRemovedKeys = new Set(Array.isArray(state.removedKeys) ? state.removedKeys : []);
+
+  checks.forEach(c=>{
+    c.checked = checkedKeys.has(c.dataset.key);
+    if(c.checked){
+      localStorage.setItem(c.dataset.key,'1');
+    }else{
+      localStorage.removeItem(c.dataset.key);
+    }
+  });
+
+  removedKeys = nextRemovedKeys;
+  hideChecked = Boolean(state.hideChecked);
+  localStorage.setItem(hideCheckedKey, hideChecked ? '1' : '0');
+  saveRemovedKeys();
+  applyFilters();
+}
+
+function userDocRef(){
+  return firebaseApi.doc(db, 'users', currentUser.uid, 'studySets', 'hsk3');
+}
+
+async function saveCloudState(){
+  if(!currentUser || !db || loadingCloudState) return;
+  try{
+    setSyncStatus('저장 중...');
+    await firebaseApi.setDoc(userDocRef(), {
+      ...getStudyState(),
+      updatedAt: firebaseApi.serverTimestamp()
+    }, { merge: true });
+    setSyncStatus('계정 저장됨');
+  }catch(error){
+    console.error(error);
+    setSyncStatus('저장 실패');
+  }
+}
+
+function scheduleCloudSave(){
+  if(loadingCloudState) return;
+  if(!currentUser){
+    setSyncStatus(firebaseReady ? '브라우저에만 저장 중' : 'Firebase 설정 필요');
+    return;
+  }
+  window.clearTimeout(saveTimer);
+  setSyncStatus('저장 대기...');
+  saveTimer = window.setTimeout(saveCloudState, 600);
+}
+
+async function loadCloudState(){
+  if(!currentUser || !db) return;
+  loadingCloudState = true;
+  try{
+    setSyncStatus('불러오는 중...');
+    const snap = await firebaseApi.getDoc(userDocRef());
+    if(snap.exists()){
+      applyStudyState(snap.data());
+      setSyncStatus('계정 저장됨');
+    }else{
+      loadingCloudState = false;
+      await saveCloudState();
+      return;
+    }
+  }catch(error){
+    console.error(error);
+    setSyncStatus('불러오기 실패');
+  }finally{
+    loadingCloudState = false;
+  }
+}
+
+function updateAccountUI(){
+  if(!firebaseReady){
+    signInGoogleButton.disabled = true;
+    signOutGoogleButton.hidden = true;
+    accountText.textContent = 'Firebase 설정 필요';
+    setSyncStatus('브라우저 저장');
+    return;
+  }
+
+  signInGoogleButton.hidden = Boolean(currentUser);
+  signOutGoogleButton.hidden = !currentUser;
+  accountText.textContent = currentUser ? currentUser.email : '브라우저 저장';
+}
+
+function updateProgress(){
+  const activeChecks = [...checks].filter(c=>!removedKeys.has(c.dataset.key));
+  const total = activeChecks.length;
+  const done = activeChecks.filter(c=>c.checked).length;
+  const removed = removedKeys.size;
+  document.getElementById('progressText').textContent = `${done} / ${total}개 체크됨${removed ? ` · ${removed}개 지움` : ''}`;
+}
+
+function checkedForRemoval(){
+  const q = search.value.trim().toLowerCase();
+  return [...checks].filter(c=>{
+    const tr = c.closest('tr');
+    return c.checked && !removedKeys.has(c.dataset.key) && (!q || tr.dataset.search.includes(q));
+  });
+}
+
+function updateControls(){
+  toggleCheckedButton.textContent = hideChecked ? '체크한 단어 보이기' : '체크한 단어 숨기기';
+  toggleCheckedButton.setAttribute('aria-pressed', hideChecked ? 'true' : 'false');
+  removeCheckedButton.disabled = checkedForRemoval().length===0;
+  restoreRemovedButton.disabled = removedKeys.size===0;
+}
+
+function applyFilters(){
   const q = search.value.trim().toLowerCase();
   document.querySelectorAll('tbody tr').forEach(tr=>{
-    tr.classList.toggle('hidden', q && !tr.dataset.search.includes(q));
+    const c = tr.querySelector('.word-check');
+    const hiddenBySearch = q && !tr.dataset.search.includes(q);
+    const hiddenByChecked = hideChecked && c.checked;
+    const hiddenByRemoved = removedKeys.has(c.dataset.key);
+    tr.classList.toggle('hidden', hiddenBySearch || hiddenByChecked || hiddenByRemoved);
   });
   document.querySelectorAll('.category').forEach(sec=>{
     const visible = [...sec.querySelectorAll('tbody tr')].some(tr=>!tr.classList.contains('hidden'));
-    sec.classList.toggle('hidden', !visible && q);
+    sec.classList.toggle('hidden', !visible && (q || hideChecked || removedKeys.size));
   });
+  updateProgress();
+  updateControls();
+}
+
+checks.forEach(c=>{
+  c.checked = localStorage.getItem(c.dataset.key)==='1';
+  c.addEventListener('change',()=>{
+    if(c.checked){
+      localStorage.setItem(c.dataset.key,'1');
+    }else{
+      localStorage.removeItem(c.dataset.key);
+    }
+    applyFilters();
+    scheduleCloudSave();
+  });
+});
+search.addEventListener('input',()=>{
+  applyFilters();
 });
 document.getElementById('hideMeaning').addEventListener('click',()=>{
   document.querySelectorAll('.meaning').forEach(td=>td.classList.toggle('hidden-meaning'));
 });
+toggleCheckedButton.addEventListener('click',()=>{
+  hideChecked = !hideChecked;
+  localStorage.setItem(hideCheckedKey, hideChecked ? '1' : '0');
+  applyFilters();
+  scheduleCloudSave();
+});
+removeCheckedButton.addEventListener('click',()=>{
+  const selected = checkedForRemoval();
+  if(!selected.length) return;
+  const q = search.value.trim();
+  const scopeText = q ? '현재 검색 결과에서 ' : '';
+  if(confirm(`${scopeText}체크한 단어 ${selected.length}개를 목록에서 지울까요?`)){
+    selected.forEach(c=>removedKeys.add(c.dataset.key));
+    saveRemovedKeys();
+    applyFilters();
+    scheduleCloudSave();
+  }
+});
+restoreRemovedButton.addEventListener('click',()=>{
+  if(!removedKeys.size) return;
+  if(confirm(`지운 단어 ${removedKeys.size}개를 다시 보이게 할까요?`)){
+    removedKeys.clear();
+    saveRemovedKeys();
+    applyFilters();
+    scheduleCloudSave();
+  }
+});
 document.getElementById('clearChecks').addEventListener('click',()=>{
   if(confirm('체크 기록을 모두 지울까요?')){
     checks.forEach(c=>{c.checked=false;localStorage.removeItem(c.dataset.key);});
-    updateProgress();
+    applyFilters();
+    scheduleCloudSave();
   }
 });
+
+signInGoogleButton.addEventListener('click',async()=>{
+  if(!auth) return;
+  try{
+    setSyncStatus('로그인 중...');
+    await firebaseApi.signInWithPopup(auth, new firebaseApi.GoogleAuthProvider());
+  }catch(error){
+    console.error(error);
+    setSyncStatus('로그인 실패');
+  }
+});
+
+signOutGoogleButton.addEventListener('click',async()=>{
+  if(!auth) return;
+  try{
+    await firebaseApi.signOut(auth);
+  }catch(error){
+    console.error(error);
+    setSyncStatus('로그아웃 실패');
+  }
+});
+
+async function setupFirebase(){
+  if(!firebaseReady){
+    updateAccountUI();
+    return;
+  }
+
+  try{
+    setSyncStatus('Firebase 연결 중...');
+    const [appModule, authModule, firestoreModule] = await Promise.all([
+      import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js'),
+      import('https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js'),
+      import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js')
+    ]);
+    firebaseApi = {
+      initializeApp: appModule.initializeApp,
+      getAuth: authModule.getAuth,
+      GoogleAuthProvider: authModule.GoogleAuthProvider,
+      onAuthStateChanged: authModule.onAuthStateChanged,
+      signInWithPopup: authModule.signInWithPopup,
+      signOut: authModule.signOut,
+      getFirestore: firestoreModule.getFirestore,
+      doc: firestoreModule.doc,
+      getDoc: firestoreModule.getDoc,
+      setDoc: firestoreModule.setDoc,
+      serverTimestamp: firestoreModule.serverTimestamp
+    };
+
+    const app = firebaseApi.initializeApp(firebaseConfig);
+    auth = firebaseApi.getAuth(app);
+    db = firebaseApi.getFirestore(app);
+    firebaseApi.onAuthStateChanged(auth,async user=>{
+      currentUser = user;
+      updateAccountUI();
+      if(currentUser){
+        await loadCloudState();
+      }else{
+        setSyncStatus('브라우저에만 저장 중');
+      }
+    });
+  }catch(error){
+    console.error(error);
+    signInGoogleButton.disabled = true;
+    signOutGoogleButton.hidden = true;
+    accountText.textContent = 'Firebase 연결 실패';
+    setSyncStatus('브라우저 저장');
+  }
+}
+
+setupFirebase();
+
+applyFilters();
 </script>
 </body>
 </html>
