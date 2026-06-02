@@ -8,6 +8,7 @@
 </head>
 <body>
 <header>
+  <button id="toggleHeader" type="button" aria-label="헤더 접기" aria-expanded="true">접기 ▲</button>
   <div class="wrap">
     <h1>HSK 3급 600단어 암기용 주제 분류</h1>
     <p class="subtitle">단어를 사전순이 아니라 “시험에서 같이 나오는 장면” 기준으로 묶었습니다. 총 600개 단어.</p>
@@ -4828,6 +4829,20 @@ backToTocButton.addEventListener('click',()=>{
 window.addEventListener('hashchange',()=>{
   applyFilters();
   window.scrollTo({top:0});
+});
+// 헤더 접기/펼치기 (모바일에서 위쪽 공간 확보)
+const headerCollapsedKey = 'hsk3-header-collapsed';
+const toggleHeaderButton = document.getElementById('toggleHeader');
+function applyHeaderCollapsed(collapsed){
+  document.body.classList.toggle('header-collapsed', collapsed);
+  toggleHeaderButton.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  toggleHeaderButton.textContent = collapsed ? '펼치기 ▼' : '접기 ▲';
+}
+applyHeaderCollapsed(localStorage.getItem(headerCollapsedKey)==='1');
+toggleHeaderButton.addEventListener('click',()=>{
+  const collapsed = !document.body.classList.contains('header-collapsed');
+  localStorage.setItem(headerCollapsedKey, collapsed ? '1' : '0');
+  applyHeaderCollapsed(collapsed);
 });
 document.getElementById('hideMeaning').addEventListener('click',()=>{
   document.querySelectorAll('.meaning').forEach(td=>td.classList.toggle('hidden-meaning'));
