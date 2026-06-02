@@ -4546,17 +4546,8 @@ const backToTocButton = document.getElementById('backToToc');
 const navTitle = document.getElementById('navTitle');
 const hideCheckedKey = 'hsk3-hide-checked';
 const removedWordsKey = 'hsk3-removed-words';
-const firebaseConfig = window.HSK3_FIREBASE_CONFIG || {};
-const firebaseReady = Boolean(
-  firebaseConfig.apiKey &&
-  firebaseConfig.authDomain &&
-  firebaseConfig.projectId &&
-  firebaseConfig.appId &&
-  !String(firebaseConfig.apiKey).includes('YOUR_') &&
-  !String(firebaseConfig.authDomain).includes('YOUR_') &&
-  !String(firebaseConfig.projectId).includes('YOUR_') &&
-  !String(firebaseConfig.appId).includes('YOUR_')
-);
+let firebaseConfig = window.HSK3_FIREBASE_CONFIG || {};
+let firebaseReady = hasFirebaseConfig(firebaseConfig);
 let hideChecked = localStorage.getItem(hideCheckedKey)==='1';
 let removedKeys = loadRemovedKeys();
 let firebaseApi = null;
@@ -4576,6 +4567,39 @@ function loadRemovedKeys(){
 
 function saveRemovedKeys(){
   localStorage.setItem(removedWordsKey, JSON.stringify([...removedKeys]));
+}
+
+function hasFirebaseConfig(config){
+  return Boolean(
+    config &&
+    config.apiKey &&
+    config.authDomain &&
+    config.projectId &&
+    config.appId &&
+    !String(config.apiKey).includes('YOUR_') &&
+    !String(config.authDomain).includes('YOUR_') &&
+    !String(config.projectId).includes('YOUR_') &&
+    !String(config.appId).includes('YOUR_')
+  );
+}
+
+async function loadFirebaseConfig(){
+  if(hasFirebaseConfig(firebaseConfig)) return firebaseConfig;
+
+  try{
+    const response = await fetch('/api/firebase-config', { cache: 'no-store' });
+    if(!response.ok) return firebaseConfig;
+
+    const remoteConfig = await response.json();
+    if(hasFirebaseConfig(remoteConfig)){
+      firebaseConfig = remoteConfig;
+      window.HSK3_FIREBASE_CONFIG = remoteConfig;
+    }
+  }catch(error){
+    console.warn('Firebase config could not be loaded.', error);
+  }
+
+  return firebaseConfig;
 }
 
 function setSyncStatus(text){
@@ -4850,6 +4874,9 @@ signOutGoogleButton.addEventListener('click',async()=>{
 });
 
 async function setupFirebase(){
+  firebaseConfig = await loadFirebaseConfig();
+  firebaseReady = hasFirebaseConfig(firebaseConfig);
+
   if(!firebaseReady){
     updateAccountUI();
     return;
