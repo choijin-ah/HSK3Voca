@@ -17,6 +17,7 @@
   <div class="tool-inner">
     <input id="searchBox" type="search" placeholder="중국어, 병음, 뜻, 분류명으로 검색">
     <button id="hideMeaning" type="button">뜻 가리기/보이기</button>
+    <button id="hidePinyin" type="button">병음 가리기/보이기</button>
     <button id="toggleChecked" type="button" aria-pressed="false">체크한 단어 숨기기</button>
     <button id="removeChecked" type="button">체크한 단어 지우기</button>
     <button id="restoreRemoved" type="button">지운 단어 복구</button>
@@ -30,6 +31,10 @@
   </div>
 </div>
 <main>
+  <div id="navBar" hidden>
+    <button id="backToToc" type="button">← 목차로</button>
+    <span id="navTitle" class="nav-title"></span>
+  </div>
   <section class="panel">
     <h2>외우는 순서</h2>
     <p>처음부터 600개를 똑같이 외우지 말고, <b>1순위 → 2순위 → 3순위</b>로 압축해서 보세요. 시험 직전에는 1순위 묶음만 반복해도 문장 해석 속도가 확 올라갑니다.</p>
@@ -41,7 +46,7 @@
     </div>
   </section>
 
-  <section class="panel">
+  <section class="panel" id="tocPanel">
     <h2>목차</h2>
     <div class="grid"><a class="toc-card" href="#01-문장-뼈대-조사-접속사-부사-의문사"><span class="toc-title">01 문장 뼈대: 조사·접속사·부사·의문사</span><span class="toc-count">87개</span></a>
 <a class="toc-card" href="#02-시간-날짜-순서-빈도"><span class="toc-title">02 시간·날짜·순서·빈도</span><span class="toc-count">33개</span></a>
@@ -4532,6 +4537,9 @@ const signInGoogleButton = document.getElementById('signInGoogle');
 const signOutGoogleButton = document.getElementById('signOutGoogle');
 const accountText = document.getElementById('accountText');
 const syncStatus = document.getElementById('syncStatus');
+const navBar = document.getElementById('navBar');
+const backToTocButton = document.getElementById('backToToc');
+const navTitle = document.getElementById('navTitle');
 const hideCheckedKey = 'hsk3-hide-checked';
 const removedWordsKey = 'hsk3-removed-words';
 const firebaseConfig = window.HSK3_FIREBASE_CONFIG || {};
@@ -4692,6 +4700,45 @@ function updateControls(){
   restoreRemovedButton.disabled = removedKeys.size===0;
 }
 
+function getCurrentCategoryId(){
+  const id = decodeURIComponent(location.hash.replace(/^#/, ''));
+  const target = id ? document.getElementById(id) : null;
+  return (target && target.classList.contains('category')) ? id : '';
+}
+
+// 뷰 전환: 검색 중이면 검색 결과, 해시가 분류를 가리키면 그 분류만, 아니면 목차(인트로).
+function applyView(q){
+  const panels = document.querySelectorAll('main > .panel');
+  const cats = document.querySelectorAll('.category');
+
+  if(q){
+    panels.forEach(p=>p.classList.add('hidden'));
+    cats.forEach(sec=>{
+      const hasMatch = [...sec.querySelectorAll('.word-card')].some(card=>!card.classList.contains('hidden'));
+      sec.classList.toggle('hidden', !hasMatch);
+    });
+    navBar.hidden = false;
+    navTitle.textContent = `"${search.value.trim()}" 검색 결과`;
+    return;
+  }
+
+  const id = getCurrentCategoryId();
+  if(id){
+    const target = document.getElementById(id);
+    panels.forEach(p=>p.classList.add('hidden'));
+    cats.forEach(sec=>sec.classList.toggle('hidden', sec!==target));
+    navBar.hidden = false;
+    const h2 = target.querySelector('.cat-head h2');
+    navTitle.textContent = h2 ? h2.childNodes[0].textContent.trim() : '';
+  }else{
+    // 첫 화면: 목차 패널만 표시
+    panels.forEach(p=>p.classList.toggle('hidden', p.id !== 'tocPanel'));
+    cats.forEach(sec=>sec.classList.add('hidden'));
+    navBar.hidden = true;
+    navTitle.textContent = '';
+  }
+}
+
 function applyFilters(){
   const q = search.value.trim().toLowerCase();
   document.querySelectorAll('.word-card').forEach(card=>{
@@ -4701,10 +4748,7 @@ function applyFilters(){
     const hiddenByRemoved = removedKeys.has(c.dataset.key);
     card.classList.toggle('hidden', hiddenBySearch || hiddenByChecked || hiddenByRemoved);
   });
-  document.querySelectorAll('.category').forEach(sec=>{
-    const visible = [...sec.querySelectorAll('.word-card')].some(card=>!card.classList.contains('hidden'));
-    sec.classList.toggle('hidden', !visible && (q || hideChecked || removedKeys.size));
-  });
+  applyView(q);
   updateProgress();
   updateControls();
 }
@@ -4724,8 +4768,26 @@ checks.forEach(c=>{
 search.addEventListener('input',()=>{
   applyFilters();
 });
+// 목차로 돌아가기: 검색 중이면 검색 해제, 분류 보기면 해시 제거
+backToTocButton.addEventListener('click',()=>{
+  if(search.value.trim()){
+    search.value='';
+  }else if(location.hash){
+    history.replaceState(null, document.title, location.pathname + location.search);
+  }
+  applyFilters();
+  window.scrollTo({top:0});
+});
+// 브라우저 뒤로가기/앞으로가기 및 목차 카드 클릭(해시 변경) 처리
+window.addEventListener('hashchange',()=>{
+  applyFilters();
+  window.scrollTo({top:0});
+});
 document.getElementById('hideMeaning').addEventListener('click',()=>{
   document.querySelectorAll('.meaning').forEach(td=>td.classList.toggle('hidden-meaning'));
+});
+document.getElementById('hidePinyin').addEventListener('click',()=>{
+  document.querySelectorAll('.pinyin').forEach(el=>el.classList.toggle('hidden-pinyin'));
 });
 toggleCheckedButton.addEventListener('click',()=>{
   hideChecked = !hideChecked;
