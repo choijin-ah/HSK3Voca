@@ -29,10 +29,10 @@
 </div>
 <div class="sticky-controls">
   <div class="tool-inner">
-    <button id="hideMeaning" type="button">뜻 가리기/보이기</button>
-    <button id="hidePinyin" type="button">병음 가리기/보이기</button>
-    <button id="toggleChecked" type="button" aria-pressed="false">체크한 단어 숨기기</button>
-    <button id="removeChecked" type="button">체크한 단어 지우기</button>
+    <button id="hideMeaning" type="button">뜻</button>
+    <button id="hidePinyin" type="button">병음</button>
+    <button id="toggleChecked" type="button" aria-pressed="false">체크 숨김</button>
+    <button id="removeChecked" type="button">체크 지움</button>
   </div>
 </div>
 <main>
@@ -4741,7 +4741,7 @@ function checkedForRemoval(){
 }
 
 function updateControls(){
-  toggleCheckedButton.textContent = hideChecked ? '체크한 단어 보이기' : '체크한 단어 숨기기';
+  toggleCheckedButton.textContent = hideChecked ? '체크 보임' : '체크 숨김';
   toggleCheckedButton.setAttribute('aria-pressed', hideChecked ? 'true' : 'false');
   removeCheckedButton.disabled = checkedForRemoval().length===0;
   restoreRemovedButton.disabled = removedKeys.size===0;
