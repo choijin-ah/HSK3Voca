@@ -7,8 +7,8 @@ main{max-width:1180px;margin:0 auto;padding:24px;} .panel{background:var(--paper
 .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;background:#fff} table{width:100%;border-collapse:collapse;min-width:720px} th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle} th{position:sticky;top:0;background:#faf5ec;color:#51473d;font-size:13px} tbody tr:hover{background:#fff9ef}.num{width:54px;color:var(--muted);font-variant-numeric:tabular-nums}.check{width:44px;text-align:center}.hanzi{font-family:"Noto Sans SC","Microsoft YaHei",serif;font-size:22px;font-weight:700;letter-spacing:.02em}.pinyin{color:#2f6f73;font-weight:600}.meaning{min-width:240px}.pos{color:var(--muted);font-size:13px;white-space:nowrap}.hidden{display:none!important}.note{color:var(--muted);font-size:14px}.pill{display:inline-block;background:#fff;border:1px solid var(--line);border-radius:999px;padding:4px 8px;margin:3px;font-size:13px}.memorize-list{margin:8px 0 0 20px;padding:0}.memorize-list li{margin:6px 0}.footer{color:var(--muted);font-size:13px;text-align:center;margin:28px 0 8px}
 .meaning.hidden-meaning{color:transparent;text-shadow:0 0 8px rgba(0,0,0,.25);}
 .pinyin.hidden-pinyin{color:transparent;text-shadow:0 0 8px rgba(0,0,0,.25);}
-.word-card:hover .meaning.hidden-meaning,.meaning.hidden-meaning:hover{color:var(--ink);text-shadow:none;}
-.word-card:hover .pinyin.hidden-pinyin,.pinyin.hidden-pinyin:hover{color:var(--accent2);text-shadow:none;}
+.word-card:hover .meaning.hidden-meaning,.word-card.revealed .meaning.hidden-meaning,.meaning.hidden-meaning:hover{color:var(--ink);text-shadow:none;}
+.word-card:hover .pinyin.hidden-pinyin,.word-card.revealed .pinyin.hidden-pinyin,.pinyin.hidden-pinyin:hover{color:var(--accent2);text-shadow:none;}
 #navBar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
 #navBar[hidden]{display:none}
 #backToToc{font-weight:700}

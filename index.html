@@ -4606,6 +4606,24 @@ function setSyncStatus(text){
   syncStatus.textContent = text || '';
 }
 
+function isMobileBrowser(){
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+}
+
+function authErrorText(error){
+  if(error?.code === 'auth/unauthorized-domain'){
+    return 'Firebase 도메인 추가 필요';
+  }
+  if(error?.code === 'auth/popup-blocked'){
+    return '팝업 차단됨';
+  }
+  if(error?.code === 'auth/popup-closed-by-user'){
+    return '로그인 취소됨';
+  }
+  return '로그인 실패';
+}
+
 function getCheckedKeys(){
   return [...checks].filter(c=>c.checked).map(c=>c.dataset.key);
 }
@@ -4817,6 +4835,12 @@ document.getElementById('hideMeaning').addEventListener('click',()=>{
 document.getElementById('hidePinyin').addEventListener('click',()=>{
   document.querySelectorAll('.pinyin').forEach(el=>el.classList.toggle('hidden-pinyin'));
 });
+// 터치 기기에는 호버가 없으므로, 카드를 탭하면 가린 뜻/병음을 보였다 가렸다 한다(체크박스 탭은 제외)
+document.addEventListener('click',e=>{
+  const card = e.target.closest('.word-card');
+  if(!card || e.target.closest('.card-check')) return;
+  card.classList.toggle('revealed');
+});
 toggleCheckedButton.addEventListener('click',()=>{
   hideChecked = !hideChecked;
   localStorage.setItem(hideCheckedKey, hideChecked ? '1' : '0');
@@ -4854,12 +4878,32 @@ document.getElementById('clearChecks').addEventListener('click',()=>{
 
 signInGoogleButton.addEventListener('click',async()=>{
   if(!auth) return;
+  const provider = new firebaseApi.GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+
   try{
+    if(isMobileBrowser()){
+      setSyncStatus('로그인 화면으로 이동...');
+      await firebaseApi.signInWithRedirect(auth, provider);
+      return;
+    }
+
     setSyncStatus('로그인 중...');
-    await firebaseApi.signInWithPopup(auth, new firebaseApi.GoogleAuthProvider());
+    await firebaseApi.signInWithPopup(auth, provider);
   }catch(error){
     console.error(error);
-    setSyncStatus('로그인 실패');
+    if(error?.code === 'auth/popup-blocked' || error?.code === 'auth/cancelled-popup-request'){
+      try{
+        setSyncStatus('로그인 화면으로 이동...');
+        await firebaseApi.signInWithRedirect(auth, provider);
+        return;
+      }catch(redirectError){
+        console.error(redirectError);
+        setSyncStatus(authErrorText(redirectError));
+        return;
+      }
+    }
+    setSyncStatus(authErrorText(error));
   }
 });
 
@@ -4895,6 +4939,8 @@ async function setupFirebase(){
       GoogleAuthProvider: authModule.GoogleAuthProvider,
       onAuthStateChanged: authModule.onAuthStateChanged,
       signInWithPopup: authModule.signInWithPopup,
+      signInWithRedirect: authModule.signInWithRedirect,
+      getRedirectResult: authModule.getRedirectResult,
       signOut: authModule.signOut,
       getFirestore: firestoreModule.getFirestore,
       doc: firestoreModule.doc,
@@ -4906,6 +4952,10 @@ async function setupFirebase(){
     const app = firebaseApi.initializeApp(firebaseConfig);
     auth = firebaseApi.getAuth(app);
     db = firebaseApi.getFirestore(app);
+    firebaseApi.getRedirectResult(auth).catch(error=>{
+      console.error(error);
+      setSyncStatus(authErrorText(error));
+    });
     firebaseApi.onAuthStateChanged(auth,async user=>{
       currentUser = user;
       updateAccountUI();
