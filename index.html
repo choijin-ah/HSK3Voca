@@ -16,10 +16,6 @@
 <div class="toolbar">
   <div class="tool-inner">
     <input id="searchBox" type="search" placeholder="중국어, 병음, 뜻, 분류명으로 검색">
-    <button id="hideMeaning" type="button">뜻 가리기/보이기</button>
-    <button id="hidePinyin" type="button">병음 가리기/보이기</button>
-    <button id="toggleChecked" type="button" aria-pressed="false">체크한 단어 숨기기</button>
-    <button id="removeChecked" type="button">체크한 단어 지우기</button>
     <button id="restoreRemoved" type="button">지운 단어 복구</button>
     <button onclick="window.print()" type="button">인쇄/PDF</button>
     <button id="clearChecks" type="button">체크 초기화</button>
@@ -28,6 +24,14 @@
     <span class="account" id="accountText">브라우저 저장</span>
     <span class="sync-status" id="syncStatus">로그인하면 서버 저장</span>
     <span class="progress" id="progressText"></span>
+  </div>
+</div>
+<div class="sticky-controls">
+  <div class="tool-inner">
+    <button id="hideMeaning" type="button">뜻 가리기/보이기</button>
+    <button id="hidePinyin" type="button">병음 가리기/보이기</button>
+    <button id="toggleChecked" type="button" aria-pressed="false">체크한 단어 숨기기</button>
+    <button id="removeChecked" type="button">체크한 단어 지우기</button>
   </div>
 </div>
 <main>
