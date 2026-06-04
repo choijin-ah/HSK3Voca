@@ -204,10 +204,10 @@
     pickStudyVoice();
 
     if (quizController) quizController.reset();
+    applyFilters();
+
     if (currentUser) {
       await loadCloudState();
-    } else {
-      applyFilters();
     }
   }
 
