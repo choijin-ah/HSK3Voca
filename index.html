@@ -4607,11 +4607,6 @@ function setSyncStatus(text){
   syncStatus.textContent = text || '';
 }
 
-function isMobileBrowser(){
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-    (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-}
-
 function authErrorText(error){
   if(error?.code === 'auth/unauthorized-domain'){
     return 'Firebase 도메인 추가 필요';
@@ -4850,10 +4845,38 @@ document.getElementById('hideMeaning').addEventListener('click',()=>{
 document.getElementById('hidePinyin').addEventListener('click',()=>{
   document.querySelectorAll('.pinyin').forEach(el=>el.classList.toggle('hidden-pinyin'));
 });
+// 한자 발음 듣기: 브라우저 내장 TTS(SpeechSynthesis)로 중국어(zh-CN) 재생
+const synth = window.speechSynthesis;
+let zhVoice = null;
+function pickZhVoice(){
+  if(!synth) return;
+  const voices = synth.getVoices();
+  zhVoice = voices.find(v=>/zh[-_]?CN/i.test(v.lang)) ||
+            voices.find(v=>/^zh/i.test(v.lang)) || null;
+}
+if(synth){
+  pickZhVoice();
+  synth.addEventListener && synth.addEventListener('voiceschanged', pickZhVoice);
+}
+function speakChinese(text){
+  if(!synth || !text) return;
+  synth.cancel(); // 연타 시 큐 쌓이지 않게 진행 중 발화 중단
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'zh-CN';
+  if(zhVoice) u.voice = zhVoice;
+  u.rate = 0.9;
+  synth.speak(u);
+}
 // 터치 기기에는 호버가 없으므로, 카드를 탭하면 가린 뜻/병음을 보였다 가렸다 한다(체크박스 탭은 제외)
+// 단, 한자를 탭하면 펼치기 대신 발음을 재생한다.
 document.addEventListener('click',e=>{
   const card = e.target.closest('.word-card');
   if(!card || e.target.closest('.card-check')) return;
+  const hanzi = e.target.closest('.hanzi');
+  if(hanzi){
+    speakChinese(hanzi.textContent.trim());
+    return;
+  }
   card.classList.toggle('revealed');
 });
 toggleCheckedButton.addEventListener('click',()=>{
@@ -4897,12 +4920,6 @@ signInGoogleButton.addEventListener('click',async()=>{
   provider.setCustomParameters({ prompt: 'select_account' });
 
   try{
-    if(isMobileBrowser()){
-      setSyncStatus('로그인 화면으로 이동...');
-      await firebaseApi.signInWithRedirect(auth, provider);
-      return;
-    }
-
     setSyncStatus('로그인 중...');
     await firebaseApi.signInWithPopup(auth, provider);
   }catch(error){

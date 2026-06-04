@@ -23,7 +23,11 @@ main{max-width:1180px;margin:0 auto;padding:24px;} .panel{background:var(--paper
 .word-card:hover{border-color:var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.06)}
 .word-card:has(.word-check:checked){background:#f3efe6;border-color:var(--accent)}
 .word-card .num{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;width:auto}
-.word-card .hanzi{font-size:30px;line-height:1.2;margin:2px 0}
+.word-card .hanzi{font-size:30px;line-height:1.2;margin:2px 0;cursor:pointer;display:inline-block;width:fit-content}
+.word-card .hanzi::after{content:"🔊";font-size:12px;margin-left:6px;opacity:.3;vertical-align:middle;transition:opacity .15s}
+.word-card .hanzi:hover{color:var(--accent2)}
+.word-card .hanzi:hover::after{opacity:.75}
+.word-card .hanzi:active::after{opacity:1}
 .word-card .pinyin{font-size:15px}
 .word-card .meaning{font-size:15px;min-width:0}
 .word-card .pos{font-size:12px}
