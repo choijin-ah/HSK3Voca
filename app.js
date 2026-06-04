@@ -7,7 +7,8 @@
     checks: [],
     removedKeys: new Set(),
     hideChecked: false,
-    quizActive: false
+    quizActive: false,
+    landingActive: false
   };
 
   const elements = {};
@@ -46,6 +47,8 @@
       navBar: byId('navBar'),
       backToTocButton: byId('backToToc'),
       navTitle: byId('navTitle'),
+      landingPanel: byId('landingPanel'),
+      landingGrid: byId('landingGrid'),
       toggleHeaderButton: byId('toggleHeader'),
       hideMeaningButton: byId('hideMeaning'),
       hidePinyinButton: byId('hidePinyin'),
@@ -101,17 +104,11 @@
     });
   }
 
-  function getInitialSetId() {
+  function getSetIdFromUrl() {
     const params = new URLSearchParams(window.location.search);
     const fromUrl = params.get('set');
-    const fromStorage = localStorage.getItem('vocab-current-set');
-    const fallback = manifest[0]?.id || 'hsk3';
 
-    return manifest.some((item) => item.id === fromUrl)
-      ? fromUrl
-      : manifest.some((item) => item.id === fromStorage)
-        ? fromStorage
-        : fallback;
+    return manifest.some((item) => item.id === fromUrl) ? fromUrl : '';
   }
 
   function populateSetSelector() {
@@ -124,6 +121,48 @@
     });
 
     elements.setSelector.hidden = manifest.length <= 1;
+  }
+
+  function examLabel(item) {
+    if (/^hsk/i.test(item.id)) return 'HSK';
+    if (/^jlpt/i.test(item.id)) return 'JLPT';
+    return '단어장';
+  }
+
+  function renderLanding() {
+    elements.landingGrid.replaceChildren();
+
+    manifest.forEach((item) => {
+      const button = createElement('button', 'landing-card');
+      button.type = 'button';
+      button.appendChild(createElement('span', 'landing-kicker', examLabel(item)));
+      button.appendChild(createElement('span', 'landing-title', item.title));
+      button.appendChild(createElement('span', 'landing-meta', '학습 시작'));
+      button.addEventListener('click', () => loadVocabularySet(item.id));
+      elements.landingGrid.appendChild(button);
+    });
+  }
+
+  function showLanding() {
+    app.set = null;
+    app.checks = [];
+    app.quizActive = false;
+    app.landingActive = true;
+
+    document.body.classList.add('is-landing');
+    document.title = '어휘 학습';
+    elements.pageTitle.textContent = '어휘 학습';
+    elements.pageSubtitle.textContent = 'HSK/JLPT 중 학습할 단어장을 선택하세요.';
+    elements.search.value = '';
+    elements.progressText.textContent = '';
+    elements.navBar.hidden = true;
+    elements.navTitle.textContent = '';
+    elements.landingPanel.hidden = false;
+    elements.quizPanel.hidden = true;
+    elements.tocPanel.classList.add('hidden');
+    elements.categoryRoot.replaceChildren();
+    elements.tocGrid.replaceChildren();
+    elements.footerText.textContent = '';
   }
 
   function updateSetUrl(setId) {
@@ -150,11 +189,14 @@
     app.removedKeys = loadRemovedKeys();
     app.hideChecked = localStorage.getItem(setScopedKey('hide-checked')) === '1';
     app.quizActive = false;
+    app.landingActive = false;
 
     localStorage.setItem('vocab-current-set', setId);
     elements.setSelector.value = setId;
     if (!options.keepUrl) updateSetUrl(setId);
 
+    document.body.classList.remove('is-landing');
+    elements.landingPanel.hidden = true;
     renderSet(nextSet);
     bindRenderedChecks();
     applyHeaderCollapsed(localStorage.getItem(setScopedKey('header-collapsed')) === '1');
@@ -705,8 +747,10 @@
     });
 
     window.addEventListener('popstate', () => {
-      const nextSetId = getInitialSetId();
-      if (app.set && nextSetId !== app.set.id) {
+      const nextSetId = getSetIdFromUrl();
+      if (!nextSetId) {
+        showLanding();
+      } else if (!app.set || nextSetId !== app.set.id) {
         loadVocabularySet(nextSetId, { keepUrl: true });
       } else {
         applyFilters();
@@ -836,6 +880,7 @@
   async function init() {
     cacheElements();
     populateSetSelector();
+    renderLanding();
     bindStaticEvents();
 
     quizController = window.HSKQuiz.createQuizController({
@@ -845,7 +890,12 @@
     });
 
     try {
-      await loadVocabularySet(getInitialSetId(), { keepUrl: true });
+      const initialSetId = getSetIdFromUrl();
+      if (initialSetId) {
+        await loadVocabularySet(initialSetId, { keepUrl: true });
+      } else {
+        showLanding();
+      }
     } catch (error) {
       console.error(error);
       elements.navTitle.textContent = '단어 데이터를 불러오지 못했습니다.';
