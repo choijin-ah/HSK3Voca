@@ -1,16 +1,66 @@
-# HSK3Voca
+# Vocab Study
 
-HSK 3급 단어 암기표입니다. 체크한 단어, 숨긴 단어, 지운 단어 목록을 Google 로그인 계정별로 Firebase Firestore에 저장할 수 있습니다.
+HSK/JLPT 같은 시험별 어휘를 주제별 카드, 체크 기록, 지운 단어, 퀴즈 모드로 학습하는 정적 웹앱입니다.
+
+## 구조
+
+```txt
+index.html              # 공통 화면 껍데기
+styles.css              # 공통 스타일
+app.js                  # 세트 로딩, 렌더링, 검색, 체크, Firebase 동기화
+quiz.js                 # 퀴즈 모드
+data/
+  sets.js               # 사용 가능한 어휘 세트 목록
+  hsk3.js               # HSK3 어휘 데이터
+firebase-config.js      # 로컬 Firebase 설정 placeholder
+api/firebase-config.js  # Vercel 환경변수 -> 브라우저 전달
+```
+
+새 시험을 추가할 때는 `data/jlpt-n5.js` 같은 데이터 파일을 만들고 `data/sets.js`에 항목을 추가하면 됩니다.
+
+## 데이터 세트 형식
+
+```js
+window.VOCAB_SETS = window.VOCAB_SETS || {};
+window.VOCAB_SETS['jlpt-n5'] = {
+  id: 'jlpt-n5',
+  title: 'JLPT N5 어휘',
+  pageTitle: 'JLPT N5 어휘 학습',
+  subtitle: '기초 일본어 어휘',
+  language: 'ja-JP',
+  labels: {
+    front: '단어',
+    reading: '읽기',
+    meaning: '뜻'
+  },
+  categories: [
+    {
+      id: 'greetings',
+      title: '인사',
+      priority: '1순위',
+      description: '자주 쓰는 인사 표현',
+      tip: { label: '암기 포인트', text: '상황별로 묶어 외우세요.' },
+      examples: [],
+      words: [
+        {
+          key: 'jlpt-n5-1',
+          number: 1,
+          front: 'ありがとう',
+          reading: 'ありがとう',
+          meaning: '고마워',
+          partOfSpeech: '(감)'
+        }
+      ]
+    }
+  ]
+};
+```
 
 ## Firebase 설정
 
-1. Firebase 콘솔에서 프로젝트를 만듭니다.
-2. Authentication > Sign-in method에서 Google 로그인을 켭니다.
-3. Firestore Database를 만듭니다.
-4. Firestore Rules에 `firestore.rules` 내용을 붙여 넣고 Publish 합니다.
-5. Project settings > Your apps에서 Web 앱을 추가하고 Firebase config 값을 확인합니다.
-6. Authentication > Settings > Authorized domains에 Vercel 배포 도메인을 추가합니다.
-7. Vercel Project Settings > Environment Variables에 아래 값을 추가합니다.
+Firebase를 설정하지 않아도 브라우저 `localStorage`로 학습 기록이 저장됩니다.
+
+계정별 저장을 쓰려면 Firebase Authentication, Firestore를 켜고 Vercel 환경변수에 아래 값을 넣습니다.
 
 ```txt
 FIREBASE_API_KEY=...
@@ -22,6 +72,4 @@ FIREBASE_APP_ID=...
 FIREBASE_MEASUREMENT_ID=...
 ```
 
-`firebase-config.js`에는 실제 키를 넣지 않습니다. Vercel 배포 환경에서는 `/api/firebase-config`가 환경변수에서 값을 읽어 브라우저로 전달합니다.
-
-Firebase 설정 전에는 기존처럼 브라우저 임시 저장만 동작합니다. 설정 후 Google 로그인하면 `users/{uid}/studySets/hsk3` 문서에 계정별로 저장됩니다.
+Firestore 문서는 `users/{uid}/studySets/{setId}`에 저장됩니다.
