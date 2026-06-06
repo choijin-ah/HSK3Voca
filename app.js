@@ -37,7 +37,7 @@
   let studyVoice = null;
   let customSets = [];
   let customSeq = 0;
-  let lastWordCategoryId = '';
+  let wordEntryMode = 'single';
   let furiganaTokenizer = null;
   let furiganaTokenizerPromise = null;
 
@@ -88,6 +88,9 @@
       wordCategory: byId('wordCategory'),
       wordNewCategoryWrap: byId('wordNewCategoryWrap'),
       wordNewCategory: byId('wordNewCategory'),
+      wordSingleMode: byId('wordSingleMode'),
+      wordImportMode: byId('wordImportMode'),
+      wordSingleFields: byId('wordSingleFields'),
       wordFront: byId('wordFront'),
       wordReading: byId('wordReading'),
       wordMeaning: byId('wordMeaning'),
@@ -98,6 +101,8 @@
       wordReadingAuto: byId('wordReadingAuto'),
       wordFormClose: byId('wordFormClose'),
       wordFormHint: byId('wordFormHint'),
+      wordSubmitButton: byId('wordSubmitButton'),
+      wordImportBox: byId('wordImportBox'),
       wordTemplateDownload: byId('wordTemplateDownload'),
       wordImportFile: byId('wordImportFile'),
       wordImportHint: byId('wordImportHint'),
@@ -286,35 +291,74 @@
     }).join('');
   }
 
-  function generateReading(text) {
+  // 품사 라벨: kuromoji(IPAdic) 품사 대분류 → 한국어 표기.
+  const POS_LABELS = {
+    '名詞': '명사', '動詞': '동사', '形容詞': '형용사', '副詞': '부사',
+    '連体詞': '연체사', '接続詞': '접속사', '感動詞': '감동사',
+    '助詞': '조사', '助動詞': '조동사', '接頭詞': '접두사',
+    '記号': '기호', 'フィラー': '간투사', 'その他': '기타'
+  };
+
+  function pickPartOfSpeech(tokens) {
+    // 조사·조동사·기호는 빼고, 남은 내용어 중 마지막 토큰을 단어의 대표 품사로 본다.
+    // (예: 勉強する → する[動詞]=동사, 食べ物 → 名詞=명사)
+    const skip = new Set(['助詞', '助動詞', '記号', 'フィラー']);
+    const content = tokens.filter((token) => token.pos && !skip.has(token.pos));
+    const chosen = content.length ? content[content.length - 1] : tokens[0];
+    if (!chosen || !chosen.pos) return '';
+    // な형용사(형용동사)는 IPAdic에서 '名詞,形容動詞語幹'으로 나오므로 보정.
+    if (chosen.pos === '名詞' && chosen.pos_detail_1 === '形容動詞語幹') return '형용동사';
+    return POS_LABELS[chosen.pos] || chosen.pos;
+  }
+
+  function analyzeWord(text) {
     const trimmed = String(text || '').trim();
-    if (!trimmed || !hasKanji(trimmed)) return Promise.resolve('');
-    return ensureFuriganaTokenizer().then((tokenizer) =>
-      buildReadingFromTokens(tokenizer.tokenize(trimmed)));
+    if (!trimmed) return Promise.resolve({ reading: '', partOfSpeech: '' });
+    return ensureFuriganaTokenizer().then((tokenizer) => {
+      const tokens = tokenizer.tokenize(trimmed);
+      return {
+        reading: hasKanji(trimmed) ? buildReadingFromTokens(tokens) : '',
+        partOfSpeech: pickPartOfSpeech(tokens)
+      };
+    });
   }
 
   function autoFillReading(options = {}) {
     if (!supportsFurigana()) return;
+    if (wordEntryMode !== 'single') return;
     const front = elements.wordFront.value;
-    if (!hasKanji(front)) return;
-    if (options.onlyWhenEmpty && elements.wordReading.value.trim()) return;
+    if (!front.trim()) return;
+    // blur 자동 채움은 한자가 있을 때만(가나 전용 단어까지 매번 사전을 받지 않도록).
+    if (options.onlyWhenEmpty) {
+      const needReading = hasKanji(front) && !elements.wordReading.value.trim();
+      const needPos = !elements.wordPos.value.trim();
+      if (!hasKanji(front) || (!needReading && !needPos)) return;
+    }
 
     const hint = elements.wordFormHint;
     hint.classList.remove('is-error');
-    hint.textContent = '읽기 생성 중…';
+    hint.textContent = '자동 생성 중…';
     elements.wordReadingAuto.disabled = true;
 
-    generateReading(front)
-      .then((reading) => {
-        if (reading) {
+    analyzeWord(front)
+      .then(({ reading, partOfSpeech }) => {
+        const filled = [];
+        // 읽기: 버튼은 항상 갱신, blur(onlyWhenEmpty)는 비어 있을 때만.
+        if (reading && (!options.onlyWhenEmpty || !elements.wordReading.value.trim())) {
           elements.wordReading.value = reading;
-          hint.textContent = '읽기를 자동으로 채웠어요. 필요하면 수정하세요.';
-        } else {
-          hint.textContent = '';
+          filled.push('읽기');
         }
+        // 품사: 손으로 입력한 값은 덮지 않도록 비어 있을 때만 채운다.
+        if (partOfSpeech && !elements.wordPos.value.trim()) {
+          elements.wordPos.value = partOfSpeech;
+          filled.push('품사');
+        }
+        hint.textContent = filled.length
+          ? `${filled.join('·')}를 자동으로 채웠어요. 필요하면 수정하세요.`
+          : '';
       })
       .catch(() => {
-        hint.textContent = '읽기 자동 생성에 실패했어요. 직접 입력해 주세요.';
+        hint.textContent = '자동 생성에 실패했어요. 직접 입력해 주세요.';
         hint.classList.add('is-error');
       })
       .then(() => {
@@ -510,8 +554,13 @@
   function registerCustomSets() {
     window.VOCAB_SETS = window.VOCAB_SETS || {};
     customSets.forEach((meta) => {
-      if (!manifest.some((item) => item.id === meta.id)) {
-        manifest.push({ id: meta.id, title: meta.title, isCustom: true });
+      const existing = manifest.find((item) => item.id === meta.id);
+      if (existing) {
+        existing.title = meta.title;
+        existing.isCustom = true;
+        existing.language = meta.language || 'other';
+      } else {
+        manifest.push({ id: meta.id, title: meta.title, isCustom: true, language: meta.language || 'other' });
       }
       window.VOCAB_SETS[meta.id] = buildCustomSetObject(meta);
     });
@@ -611,14 +660,35 @@
     return '단어장';
   }
 
+  function landingLanguage(item) {
+    const language = String(item.language || window.VOCAB_SETS?.[item.id]?.language || '').toLocaleLowerCase();
+    if (/^zh\b/.test(language)) return 'zh';
+    if (/^ja\b/.test(language)) return 'ja';
+    if (/^en\b/.test(language)) return 'en';
+    if (/^hsk/i.test(item.id)) return 'zh';
+    if (/^jlpt/i.test(item.id)) return 'ja';
+    return 'other';
+  }
+
+  function landingKicker(item, language) {
+    const exam = examLabel(item);
+    if (exam !== '단어장') return exam;
+    if (language === 'zh') return '중국어';
+    if (language === 'ja') return '일본어';
+    if (language === 'en') return '영어';
+    return '단어장';
+  }
+
   function renderLanding() {
     elements.landingGrid.replaceChildren();
 
     manifest.forEach((item) => {
-      const label = examLabel(item);
+      const language = landingLanguage(item);
+      const label = landingKicker(item, language);
       const button = createElement('button', 'landing-card');
       button.type = 'button';
       button.dataset.exam = label;
+      button.dataset.language = language;
       button.appendChild(createElement('span', 'landing-badge'));
       const head = createElement('span', 'landing-head');
       head.appendChild(createElement('span', 'landing-kicker', label));
@@ -634,9 +704,10 @@
 
     const addCard = createElement('button', 'landing-card is-add');
     addCard.type = 'button';
+    addCard.appendChild(createElement('span', 'landing-badge'));
     const addHead = createElement('span', 'landing-head');
     addHead.appendChild(createElement('span', 'landing-kicker', '직접 만들기'));
-    addHead.appendChild(createElement('span', 'landing-title', '＋ 새 단어장'));
+    addHead.appendChild(createElement('span', 'landing-title', '새 단어장'));
     addCard.appendChild(addHead);
     addCard.addEventListener('click', openSetForm);
     elements.landingGrid.appendChild(addCard);
@@ -658,7 +729,7 @@
     updateViewClasses();
     document.title = '어휘 학습';
     elements.pageTitle.textContent = '어휘 학습';
-    elements.pageSubtitle.textContent = 'HSK/JLPT 중 학습할 단어장을 선택하세요.';
+    elements.pageSubtitle.textContent = '학습할 단어장을 선택하세요.';
     elements.progressText.textContent = '';
     elements.navBar.hidden = true;
     elements.navTitle.textContent = '';
@@ -1718,7 +1789,6 @@
       ? preferredId
       : (options[0]?.id || NEW_CATEGORY_VALUE);
     elements.wordCategory.value = selectedId;
-    lastWordCategoryId = selectedId === NEW_CATEGORY_VALUE ? '' : selectedId;
     updateWordNewCategoryVisibility();
   }
 
@@ -1732,6 +1802,46 @@
     elements.wordReading.inputMode = supportsPinyinPractice() ? 'latin' : 'text';
     elements.wordReadingAuto.hidden = !supportsFurigana();
     elements.wordReadingAuto.disabled = false;
+  }
+
+  function clearWordFormHints() {
+    elements.wordFormHint.textContent = '';
+    elements.wordFormHint.classList.remove('is-error');
+    elements.wordImportHint.textContent = '';
+    elements.wordImportHint.classList.remove('is-error');
+  }
+
+  function setWordEntryMode(mode, options = {}) {
+    const nextMode = mode === 'import' ? 'import' : 'single';
+    const importMode = nextMode === 'import';
+    wordEntryMode = nextMode;
+
+    elements.wordSingleMode.classList.toggle('is-active', !importMode);
+    elements.wordSingleMode.setAttribute('aria-pressed', importMode ? 'false' : 'true');
+    elements.wordImportMode.classList.toggle('is-active', importMode);
+    elements.wordImportMode.setAttribute('aria-pressed', importMode ? 'true' : 'false');
+
+    elements.wordSingleFields.hidden = importMode;
+    elements.wordImportBox.hidden = !importMode;
+    elements.wordSubmitButton.hidden = importMode;
+
+    [elements.wordFront, elements.wordReading, elements.wordMeaning, elements.wordPos].forEach((input) => {
+      input.disabled = importMode;
+    });
+    elements.wordReadingAuto.disabled = importMode || !supportsFurigana();
+    elements.wordTemplateDownload.disabled = !importMode;
+    elements.wordImportFile.disabled = !importMode;
+
+    if (options.clearHints) clearWordFormHints();
+    if (!options.focus) return;
+
+    if (importMode) {
+      elements.wordTemplateDownload.focus();
+    } else if (elements.wordCategory.value === NEW_CATEGORY_VALUE) {
+      elements.wordNewCategory.focus();
+    } else {
+      elements.wordFront.focus();
+    }
   }
 
   function selectedWordCategoryId() {
@@ -2020,7 +2130,6 @@
       elements.wordImportFile.value = '';
       const firstCategoryId = result.words[0]?.categoryId;
       if (firstCategoryId) {
-        lastWordCategoryId = firstCategoryId;
         populateWordCategoryOptions(firstCategoryId);
       }
     } catch (error) {
@@ -2035,21 +2144,16 @@
     configureWordFormForLanguage();
     elements.wordForm.reset();
     populateWordCategoryOptions(getCurrentCategoryId());
-    elements.wordFormHint.textContent = '';
-    elements.wordFormHint.classList.remove('is-error');
-    elements.wordImportHint.textContent = '';
-    elements.wordImportHint.classList.remove('is-error');
+    clearWordFormHints();
     elements.wordImportFile.value = '';
+    setWordEntryMode('single');
     elements.wordFormModal.hidden = false;
     if (elements.wordCategory.value === NEW_CATEGORY_VALUE) elements.wordNewCategory.focus();
     else elements.wordFront.focus();
   }
 
-  function closeWordForm(navigate) {
+  function closeWordForm() {
     elements.wordFormModal.hidden = true;
-    if (navigate && lastWordCategoryId) {
-      location.hash = `#${encodeURIComponent(lastWordCategoryId)}`;
-    }
   }
 
   function openCategoryForm() {
@@ -2268,6 +2372,8 @@
     elements.addWordTocButton.addEventListener('click', openWordForm);
     elements.addCategoryButton.addEventListener('click', openCategoryForm);
     elements.addCategoryTocButton.addEventListener('click', openCategoryForm);
+    elements.wordSingleMode.addEventListener('click', () => setWordEntryMode('single', { clearHints: true, focus: true }));
+    elements.wordImportMode.addEventListener('click', () => setWordEntryMode('import', { clearHints: true, focus: true }));
     elements.wordCategory.addEventListener('change', updateWordNewCategoryVisibility);
     elements.wordReadingAuto.addEventListener('click', () => autoFillReading());
     elements.wordFront.addEventListener('blur', () => autoFillReading({ onlyWhenEmpty: true }));
@@ -2276,6 +2382,8 @@
 
     elements.wordForm.addEventListener('submit', (event) => {
       event.preventDefault();
+      if (wordEntryMode !== 'single') return;
+
       const front = elements.wordFront.value;
       const meaning = elements.wordMeaning.value;
       if (!front.trim() && !meaning.trim()) {
@@ -2307,7 +2415,6 @@
 
       elements.wordFormHint.textContent = '추가되었습니다. 계속 입력할 수 있어요.';
       elements.wordFormHint.classList.remove('is-error');
-      lastWordCategoryId = categoryId;
       elements.wordFront.value = '';
       elements.wordReading.value = '';
       elements.wordMeaning.value = '';
@@ -2316,7 +2423,7 @@
       elements.wordFront.focus();
     });
 
-    elements.wordFormClose.addEventListener('click', () => closeWordForm(true));
+    elements.wordFormClose.addEventListener('click', closeWordForm);
 
     elements.categoryForm.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -2361,7 +2468,7 @@
 
     [elements.wordFormModal, elements.setFormModal, elements.categoryFormModal].forEach((modal) => {
       modal.querySelector('.modal-backdrop').addEventListener('click', () => {
-        if (modal === elements.wordFormModal) closeWordForm(true);
+        if (modal === elements.wordFormModal) closeWordForm();
         else if (modal === elements.categoryFormModal) closeCategoryForm();
         else closeSetForm();
       });
@@ -2369,7 +2476,7 @@
 
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
-      if (!elements.wordFormModal.hidden) closeWordForm(false);
+      if (!elements.wordFormModal.hidden) closeWordForm();
       if (!elements.categoryFormModal.hidden) closeCategoryForm();
       if (!elements.setFormModal.hidden) closeSetForm();
     });

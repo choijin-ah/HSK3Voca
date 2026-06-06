@@ -65,7 +65,7 @@
   <section class="landing-panel" id="landingPanel">
     <div class="landing-copy">
       <h2>무엇을 공부할까요?</h2>
-      <p>HSK와 JLPT 중 학습할 단어장을 선택하세요.</p>
+      <p>학습할 단어장을 선택하세요.</p>
     </div>
     <div class="landing-grid" id="landingGrid"></div>
   </section>
@@ -162,26 +162,32 @@
         <span>새 목차 이름</span>
         <input id="wordNewCategory" type="text" autocomplete="off">
       </label>
-      <label class="modal-field">
-        <span id="wordFrontLabel">단어</span>
-        <input id="wordFront" type="text" autocomplete="off" required>
-      </label>
-      <label class="modal-field">
-        <span id="wordMeaningLabel">뜻</span>
-        <input id="wordMeaning" type="text" autocomplete="off" required>
-      </label>
-      <label class="modal-field">
-        <span>품사 (선택)</span>
-        <input id="wordPos" type="text" autocomplete="off">
-      </label>
-      <label class="modal-field">
-        <span id="wordReadingLabel">읽기</span>
-        <div class="field-row">
-          <input id="wordReading" type="text" autocomplete="off">
-          <button type="button" id="wordReadingAuto" class="field-action" hidden>자동</button>
-        </div>
-      </label>
-      <div class="import-box">
+      <div class="mode-toggle word-mode-toggle" role="group" aria-label="단어 추가 방식">
+        <button type="button" id="wordSingleMode" class="mode-option is-active" aria-pressed="true">개별로 올리기</button>
+        <button type="button" id="wordImportMode" class="mode-option" aria-pressed="false">엑셀로 옮기기</button>
+      </div>
+      <div id="wordSingleFields">
+        <label class="modal-field">
+          <span id="wordFrontLabel">단어</span>
+          <input id="wordFront" type="text" autocomplete="off">
+        </label>
+        <label class="modal-field">
+          <span id="wordMeaningLabel">뜻</span>
+          <input id="wordMeaning" type="text" autocomplete="off">
+        </label>
+        <label class="modal-field">
+          <span>품사 (선택)</span>
+          <input id="wordPos" type="text" autocomplete="off">
+        </label>
+        <label class="modal-field">
+          <span id="wordReadingLabel">읽기</span>
+          <div class="field-row">
+            <input id="wordReading" type="text" autocomplete="off">
+            <button type="button" id="wordReadingAuto" class="field-action" hidden>자동</button>
+          </div>
+        </label>
+      </div>
+      <div class="import-box" id="wordImportBox" hidden>
         <div class="import-head">
           <span>엑셀 자동 입력</span>
           <button type="button" id="wordTemplateDownload" class="field-action">양식 다운로드</button>
@@ -193,7 +199,7 @@
         <p class="modal-hint" id="wordImportHint" aria-live="polite"></p>
       </div>
       <div class="modal-actions">
-        <button type="submit">추가</button>
+        <button type="submit" id="wordSubmitButton">추가</button>
         <button type="button" id="wordFormClose" class="ghost">닫기</button>
       </div>
       <p class="modal-hint" id="wordFormHint" aria-live="polite"></p>

@@ -236,8 +236,10 @@ h2{margin:0 0 10px;font-size:22px;font-weight:800;letter-spacing:-.025em}
 .landing-meta{margin-top:auto;display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted);font-weight:600}
 .landing-arrow{transition:transform .18s var(--ease);color:var(--card-accent,var(--accent))}
 .landing-card:hover .landing-arrow{transform:translateX(4px)}
-.landing-card[data-exam="HSK"]{--card-accent:#c0563a;--card-glyph:"中"}
-.landing-card[data-exam="JLPT"]{--card-accent:#3f6fb0;--card-glyph:"あ"}
+.landing-card[data-language="zh"]{--card-accent:#c0563a;--card-glyph:"中"}
+.landing-card[data-language="ja"]{--card-accent:#3f6fb0;--card-glyph:"あ"}
+.landing-card[data-language="en"]{--card-accent:#2f7d5b;--card-glyph:"A"}
+.landing-card[data-language="other"]{--card-accent:#7a5aa6;--card-glyph:"語"}
 
 /* ===== Category ===== */
 .category{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-lg);margin:18px 0;padding:22px;box-shadow:var(--shadow-sm);}
@@ -422,7 +424,7 @@ body.pinyin-practice-active .pinyin-practice-input{display:block}
 .word-card:hover .word-del,.word-card.is-custom .word-del{opacity:.7}
 .word-del:hover{color:var(--warn);background:var(--soft);opacity:1}
 
-.landing-card.is-add{border-style:dashed;align-items:center;justify-content:center;text-align:center;color:var(--accent-ink)}
+.landing-card.is-add{--card-glyph:"+";border-style:dashed;align-items:center;justify-content:center;text-align:center;color:var(--accent-ink)}
 .landing-card.is-add .landing-title{font-size:18px}
 
 /* ===== Modal ===== */
@@ -431,6 +433,10 @@ body.pinyin-practice-active .pinyin-practice-input{display:block}
 .modal-backdrop{position:absolute;inset:0;background:rgba(38,34,29,.45);backdrop-filter:blur(2px)}
 .modal-card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:22px 20px;width:min(420px,100%);max-height:90vh;overflow:auto}
 .modal-card h3{margin:0 0 14px}
+.mode-toggle{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin:4px 0 14px;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--soft-2)}
+.mode-option{font:inherit;font-size:13px;font-weight:700;color:var(--muted);padding:9px 8px;border:none;border-radius:9px;background:transparent;cursor:pointer}
+.mode-option.is-active{background:var(--surface);color:var(--accent-ink);box-shadow:0 1px 4px rgba(71,55,38,.12)}
+.mode-option:hover{color:var(--accent-ink)}
 .modal-field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;font-size:13px;color:var(--muted)}
 .modal-field[hidden]{display:none}
 .modal-field input,.modal-field select{font:inherit;font-size:15px;color:var(--ink);padding:9px 11px;border:1px solid var(--line-strong);border-radius:10px;background:var(--paper)}
@@ -442,6 +448,7 @@ body.pinyin-practice-active .pinyin-practice-input{display:block}
 .field-action:hover{filter:brightness(1.05)}
 .field-action:disabled{opacity:.6;cursor:progress}
 .import-box{margin:14px 0 10px;padding:12px;border:1px dashed var(--line-strong);border-radius:12px;background:var(--soft-2)}
+.import-box[hidden]{display:none}
 .import-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;font-size:13px;font-weight:800;color:var(--accent-ink)}
 .import-head .field-action{height:32px}
 .import-box .modal-field{margin-bottom:6px}
