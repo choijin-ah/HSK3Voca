@@ -190,8 +190,10 @@ h2{margin:0 0 10px;font-size:22px;font-weight:800;letter-spacing:-.025em}
 
 /* ===== TOC ===== */
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
-.toc-tools{display:flex;justify-content:flex-start;margin-bottom:14px}
+.toc-tools{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .toc-tools .set-selector{width:min(360px,100%);max-width:100%}
+.toc-actions{display:flex;gap:8px;flex-wrap:wrap}
+.toc-actions button{white-space:nowrap}
 .toc-card{
   display:flex;justify-content:space-between;align-items:center;gap:8px;padding:14px 16px;
   border:1px solid var(--line);border-radius:var(--radius);text-decoration:none;color:var(--ink);
@@ -242,8 +244,12 @@ h2{margin:0 0 10px;font-size:22px;font-weight:800;letter-spacing:-.025em}
 .cat-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:14px}
 .cat-head h2{margin:0}
 .cat-head p{margin:6px 0 0;color:var(--muted)}
+.cat-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
 .count{font-size:14px;color:var(--accent2);font-weight:700;margin-left:8px}
 .priority{background:var(--soft);color:var(--accent-ink);font-weight:800;border-radius:999px;padding:6px 12px;white-space:nowrap;font-size:13px;border:1px solid var(--line)}
+.category-add-word{padding:6px 10px;border-radius:999px;font-size:12.5px;white-space:nowrap}
+.category-del{border:none;background:transparent;color:var(--muted);font-size:18px;line-height:1;width:28px;height:28px;padding:0;border-radius:50%;cursor:pointer}
+.category-del:hover{color:var(--warn);background:var(--soft)}
 .tip{padding:13px 16px;background:var(--tip-bg);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;margin:12px 0}
 .tip b{color:var(--accent-ink)}
 .examples{background:var(--surface);border:1px dashed var(--line-strong);padding:14px 16px;border-radius:var(--radius);margin-bottom:14px}
@@ -352,7 +358,7 @@ tbody tr:hover{background:var(--soft-2)}
 .word-card:hover{border-color:var(--accent);box-shadow:var(--shadow-md);transform:translateY(-2px)}
 .word-card:has(.word-check:checked){background:var(--soft);border-color:var(--accent)}
 .word-card .num{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;width:auto}
-.word-card .hanzi{font-size:30px;line-height:1.2;margin:2px 0;cursor:pointer;display:inline-block;width:fit-content}
+.word-card .hanzi{font-size:30px;line-height:1.2;margin:2px 0;cursor:pointer;display:inline-block;width:fit-content;max-width:100%;white-space:nowrap}
 .word-card .hanzi::after{content:"🔊";font-size:12px;margin-left:6px;opacity:.28;vertical-align:middle;transition:opacity .15s}
 .word-card .hanzi:hover{color:var(--accent2)}
 .word-card .hanzi:hover::after{opacity:.75}
@@ -426,8 +432,20 @@ body.pinyin-practice-active .pinyin-practice-input{display:block}
 .modal-card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:22px 20px;width:min(420px,100%);max-height:90vh;overflow:auto}
 .modal-card h3{margin:0 0 14px}
 .modal-field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;font-size:13px;color:var(--muted)}
+.modal-field[hidden]{display:none}
 .modal-field input,.modal-field select{font:inherit;font-size:15px;color:var(--ink);padding:9px 11px;border:1px solid var(--line-strong);border-radius:10px;background:var(--paper)}
 .modal-field input:focus,.modal-field select:focus{outline:none;border-color:var(--accent)}
+.field-row{display:flex;gap:6px;align-items:stretch}
+.field-row input{flex:1;min-width:0}
+.field-action{font:inherit;font-size:13px;font-weight:600;white-space:nowrap;padding:0 12px;border:1px solid var(--accent);border-radius:10px;background:transparent;color:var(--accent-ink);cursor:pointer}
+.field-action[hidden]{display:none}
+.field-action:hover{filter:brightness(1.05)}
+.field-action:disabled{opacity:.6;cursor:progress}
+.import-box{margin:14px 0 10px;padding:12px;border:1px dashed var(--line-strong);border-radius:12px;background:var(--soft-2)}
+.import-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;font-size:13px;font-weight:800;color:var(--accent-ink)}
+.import-head .field-action{height:32px}
+.import-box .modal-field{margin-bottom:6px}
+.import-box input[type="file"]{width:100%}
 .modal-actions{display:flex;gap:8px;margin-top:6px}
 .modal-actions button{flex:1;font:inherit;font-weight:600;padding:10px;border-radius:10px;border:1px solid var(--accent);background:var(--accent);color:var(--on-accent);cursor:pointer}
 .modal-actions button.ghost{background:transparent;color:var(--accent-ink)}

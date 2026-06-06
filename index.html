@@ -41,6 +41,7 @@
     <button id="pinyinPracticeButton" type="button" aria-pressed="false">쓰기 연습 모드</button>
     <button id="quizModeButton" type="button">퀴즈 모드</button>
     <button id="addWordButton" type="button" hidden>단어 추가</button>
+    <button id="addCategoryButton" type="button" hidden>목차 추가</button>
     <button id="clearChecks" type="button">체크 초기화</button>
     <span class="progress" id="progressText"></span>
   </div>
@@ -136,6 +137,10 @@
     <div class="toc-tools">
       <label class="sr-only" for="setSelector">과목 선택</label>
       <select id="setSelector" class="set-selector" aria-label="과목 선택" hidden></select>
+      <div class="toc-actions">
+        <button id="addCategoryTocButton" type="button" hidden>목차 추가</button>
+        <button id="addWordTocButton" type="button" hidden>단어 추가</button>
+      </div>
     </div>
     <h2>목차</h2>
     <div class="grid" id="tocGrid"></div>
@@ -150,12 +155,16 @@
     <h3 id="wordFormTitle">단어 추가</h3>
     <form id="wordForm">
       <label class="modal-field">
-        <span id="wordFrontLabel">단어</span>
-        <input id="wordFront" type="text" autocomplete="off" required>
+        <span>목차</span>
+        <select id="wordCategory"></select>
+      </label>
+      <label class="modal-field" id="wordNewCategoryWrap" hidden>
+        <span>새 목차 이름</span>
+        <input id="wordNewCategory" type="text" autocomplete="off">
       </label>
       <label class="modal-field">
-        <span id="wordReadingLabel">읽기</span>
-        <input id="wordReading" type="text" autocomplete="off">
+        <span id="wordFrontLabel">단어</span>
+        <input id="wordFront" type="text" autocomplete="off" required>
       </label>
       <label class="modal-field">
         <span id="wordMeaningLabel">뜻</span>
@@ -165,11 +174,55 @@
         <span>품사 (선택)</span>
         <input id="wordPos" type="text" autocomplete="off">
       </label>
+      <label class="modal-field">
+        <span id="wordReadingLabel">읽기</span>
+        <div class="field-row">
+          <input id="wordReading" type="text" autocomplete="off">
+          <button type="button" id="wordReadingAuto" class="field-action" hidden>자동</button>
+        </div>
+      </label>
+      <div class="import-box">
+        <div class="import-head">
+          <span>엑셀 자동 입력</span>
+          <button type="button" id="wordTemplateDownload" class="field-action">양식 다운로드</button>
+        </div>
+        <label class="modal-field">
+          <span>채운 파일 업로드</span>
+          <input id="wordImportFile" type="file" accept=".xlsx,.xls,.csv,.tsv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel">
+        </label>
+        <p class="modal-hint" id="wordImportHint" aria-live="polite"></p>
+      </div>
       <div class="modal-actions">
         <button type="submit">추가</button>
         <button type="button" id="wordFormClose" class="ghost">닫기</button>
       </div>
       <p class="modal-hint" id="wordFormHint" aria-live="polite"></p>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="categoryFormModal" hidden>
+  <div class="modal-backdrop" data-close="category"></div>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="categoryFormTitle">
+    <h3 id="categoryFormTitle">목차 추가</h3>
+    <form id="categoryForm">
+      <label class="modal-field">
+        <span>목차 이름</span>
+        <input id="categoryTitle" type="text" autocomplete="off" required>
+      </label>
+      <label class="modal-field">
+        <span>설명 (선택)</span>
+        <input id="categoryDescription" type="text" autocomplete="off">
+      </label>
+      <label class="modal-field">
+        <span>표시 라벨 (선택)</span>
+        <input id="categoryPriority" type="text" autocomplete="off" value="추가">
+      </label>
+      <div class="modal-actions">
+        <button type="submit">추가</button>
+        <button type="button" id="categoryFormClose" class="ghost">취소</button>
+      </div>
+      <p class="modal-hint" id="categoryFormHint" aria-live="polite"></p>
     </form>
   </div>
 </div>
@@ -205,6 +258,7 @@
 <script src="data/sets.js"></script>
 <script src="quiz.js"></script>
 <script src="srs.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
