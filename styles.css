@@ -75,4 +75,3 @@ body.pinyin-practice-active .pinyin-practice-input{display:block}
 }
 @media (max-width:480px){.card-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}}
 @media (max-width:480px){.quiz-input{align-items:stretch;flex-direction:column}.quiz-input input{min-width:0;width:100%}.quiz-input button{width:100%}}
-@media print{.toolbar,.sticky-controls{display:none} body{background:#fff} header{background:#fff;color:#000;border-bottom:2px solid #000}.subtitle{color:#333}.panel,.category{box-shadow:none;break-inside:avoid} .examples,.tip{break-inside:avoid} .word-card{break-inside:avoid} input[type="checkbox"]{display:none} th{position:static}}

@@ -37,7 +37,6 @@
       setSelector: byId('setSelector'),
       restoreRemovedButton: byId('restoreRemoved'),
       pinyinPracticeButton: byId('pinyinPracticeButton'),
-      printButton: byId('printButton'),
       clearChecksButton: byId('clearChecks'),
       quizModeButton: byId('quizModeButton'),
       signInGoogleButton: byId('signInGoogle'),
@@ -59,6 +58,7 @@
       tocPanel: byId('tocPanel'),
       categoryRoot: byId('categoryRoot'),
       quizPanel: byId('quizPanel'),
+      quizModeSelect: byId('quizMode'),
       footerText: byId('footerText')
     });
   }
@@ -72,6 +72,10 @@
 
   function setScopedKey(name) {
     return `${app.set?.id || 'vocab'}-${name}`;
+  }
+
+  function supportsPinyinPractice(set = app.set) {
+    return /^zh\b/i.test(set?.language || '');
   }
 
   function loadRemovedKeys() {
@@ -130,11 +134,19 @@
     elements.landingGrid.replaceChildren();
 
     manifest.forEach((item) => {
+      const label = examLabel(item);
       const button = createElement('button', 'landing-card');
       button.type = 'button';
-      button.appendChild(createElement('span', 'landing-kicker', examLabel(item)));
-      button.appendChild(createElement('span', 'landing-title', item.title));
-      button.appendChild(createElement('span', 'landing-meta', '학습 시작'));
+      button.dataset.exam = label;
+      button.appendChild(createElement('span', 'landing-badge'));
+      const head = createElement('span', 'landing-head');
+      head.appendChild(createElement('span', 'landing-kicker', label));
+      head.appendChild(createElement('span', 'landing-title', item.title));
+      button.appendChild(head);
+      const meta = createElement('span', 'landing-meta');
+      meta.appendChild(createElement('span', 'landing-meta-text', '학습 시작'));
+      meta.appendChild(createElement('span', 'landing-arrow', '→'));
+      button.appendChild(meta);
       button.addEventListener('click', () => loadVocabularySet(item.id));
       elements.landingGrid.appendChild(button);
     });
@@ -300,21 +312,22 @@
     input.dataset.key = word.key;
     label.appendChild(input);
 
-    const practiceInput = document.createElement('input');
-    practiceInput.type = 'text';
-    practiceInput.className = 'pinyin-practice-input';
-    practiceInput.placeholder = 'pinyin';
-    practiceInput.autocomplete = 'off';
-    practiceInput.autocapitalize = 'none';
-    practiceInput.spellcheck = false;
-    practiceInput.inputMode = 'latin';
-    practiceInput.setAttribute('aria-label', `${word.front} 병음 입력`);
-
     card.appendChild(label);
     card.appendChild(createElement('span', 'num', word.number));
     card.appendChild(createElement('div', 'hanzi', word.front));
     card.appendChild(createElement('div', 'pinyin', word.reading));
-    card.appendChild(practiceInput);
+    if (supportsPinyinPractice()) {
+      const practiceInput = document.createElement('input');
+      practiceInput.type = 'text';
+      practiceInput.className = 'pinyin-practice-input';
+      practiceInput.placeholder = 'pinyin';
+      practiceInput.autocomplete = 'off';
+      practiceInput.autocapitalize = 'none';
+      practiceInput.spellcheck = false;
+      practiceInput.inputMode = 'latin';
+      practiceInput.setAttribute('aria-label', `${word.front} 병음 입력`);
+      card.appendChild(practiceInput);
+    }
     card.appendChild(createElement('div', 'meaning', word.meaning));
     card.appendChild(createElement('span', 'pos', word.partOfSpeech));
     return card;
@@ -355,7 +368,7 @@
   }
 
   function setPinyinPracticeActive(active) {
-    app.pinyinPracticeActive = Boolean(active);
+    app.pinyinPracticeActive = Boolean(active) && supportsPinyinPractice();
     document.body.classList.toggle('pinyin-practice-active', app.pinyinPracticeActive);
     if (!app.pinyinPracticeActive) clearPinyinPracticeInputs();
     updateControls();
@@ -405,11 +418,29 @@
   }
 
   function updateControls() {
+    const pinyinPracticeSupported = supportsPinyinPractice();
+    const pinyinQuizOption = elements.quizModeSelect?.querySelector('option[value="front-pinyin-input"]');
+
+    if (pinyinQuizOption) {
+      pinyinQuizOption.hidden = !pinyinPracticeSupported;
+      pinyinQuizOption.disabled = !pinyinPracticeSupported;
+      if (!pinyinPracticeSupported && elements.quizModeSelect.value === 'front-pinyin-input') {
+        elements.quizModeSelect.value = 'front-meaning';
+      }
+    }
+
+    if (!pinyinPracticeSupported && app.pinyinPracticeActive) {
+      app.pinyinPracticeActive = false;
+      document.body.classList.remove('pinyin-practice-active');
+      clearPinyinPracticeInputs();
+    }
+
     elements.toggleCheckedButton.textContent = app.hideChecked ? '체크 보임' : '체크 숨김';
     elements.toggleCheckedButton.setAttribute('aria-pressed', app.hideChecked ? 'true' : 'false');
     elements.removeCheckedButton.disabled = checkedForRemoval().length === 0;
     elements.restoreRemovedButton.disabled = app.removedKeys.size === 0;
-    elements.pinyinPracticeButton.textContent = app.pinyinPracticeActive ? '병음 연습 종료' : '병음 연습';
+    elements.pinyinPracticeButton.hidden = !pinyinPracticeSupported;
+    elements.pinyinPracticeButton.textContent = app.pinyinPracticeActive ? '쓰기 연습 종료' : '쓰기 연습 모드';
     elements.pinyinPracticeButton.setAttribute('aria-pressed', app.pinyinPracticeActive ? 'true' : 'false');
     elements.quizModeButton.textContent = app.quizActive ? '퀴즈 종료' : '퀴즈 모드';
   }
@@ -444,7 +475,7 @@
       panels.forEach((panel) => setPanelHidden(panel, true));
       categories.forEach((section) => section.classList.remove('hidden'));
       elements.navBar.hidden = false;
-      elements.navTitle.textContent = '병음 연습';
+      elements.navTitle.textContent = '쓰기 연습 모드';
       return;
     }
 
@@ -726,8 +757,6 @@
       loadVocabularySet(elements.setSelector.value);
     });
 
-    elements.printButton.addEventListener('click', () => window.print());
-
     elements.backToTocButton.addEventListener('click', () => {
       if (app.quizActive) {
         exitQuizMode();
@@ -835,6 +864,7 @@
     });
 
     elements.pinyinPracticeButton.addEventListener('click', () => {
+      if (!supportsPinyinPractice()) return;
       if (app.quizActive) exitQuizMode();
       setPinyinPracticeActive(!app.pinyinPracticeActive);
       applyFilters();
