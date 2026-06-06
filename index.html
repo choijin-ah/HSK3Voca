@@ -8,24 +8,35 @@
 </head>
 <body>
 <header>
-  <button id="toggleHeader" type="button" aria-label="헤더 접기" aria-expanded="true">접기 ▲</button>
   <div class="wrap">
-    <h1 id="pageTitle">어휘 학습</h1>
-    <p class="subtitle" id="pageSubtitle"></p>
+    <div class="header-row">
+      <h1 id="pageTitle">어휘 학습</h1>
+      <p class="subtitle" id="pageSubtitle"></p>
+      <button id="menuToggle" type="button" class="menu-toggle" aria-label="메뉴" aria-expanded="false" aria-controls="appMenu">
+        <span class="menu-bars" aria-hidden="true"></span>
+      </button>
+    </div>
+    <nav id="appMenu" class="app-menu" aria-label="메뉴" hidden>
+      <div class="menu-group">
+        <p class="menu-heading">학습 과목</p>
+        <div id="menuSubjectList" class="menu-sub" role="group"></div>
+      </div>
+      <button id="restoreRemoved" type="button" class="menu-item">지운 단어 복구</button>
+      <div class="menu-account">
+        <button id="signInGoogle" type="button" class="menu-item">Google 로그인</button>
+        <button id="signOutGoogle" type="button" class="menu-item" hidden>로그아웃</button>
+        <span class="account" id="accountText" hidden></span>
+        <span class="sync-status" id="syncStatus" hidden></span>
+      </div>
+    </nav>
   </div>
 </header>
 
 <div class="toolbar">
   <div class="tool-inner">
-    <select id="setSelector" class="set-selector" aria-label="학습 세트 선택" hidden></select>
-    <button id="restoreRemoved" type="button">지운 단어 복구</button>
     <button id="pinyinPracticeButton" type="button" aria-pressed="false">쓰기 연습 모드</button>
     <button id="quizModeButton" type="button">퀴즈 모드</button>
     <button id="clearChecks" type="button">체크 초기화</button>
-    <button id="signInGoogle" type="button">Google 로그인</button>
-    <button id="signOutGoogle" type="button" hidden>로그아웃</button>
-    <span class="account" id="accountText">브라우저 저장</span>
-    <span class="sync-status" id="syncStatus">로그인하면 서버 저장</span>
     <span class="progress" id="progressText"></span>
   </div>
 </div>
@@ -92,12 +103,15 @@
   </section>
 
   <section class="panel" id="tocPanel">
+    <div class="toc-tools">
+      <label class="sr-only" for="setSelector">과목 선택</label>
+      <select id="setSelector" class="set-selector" aria-label="과목 선택" hidden></select>
+    </div>
     <h2>목차</h2>
     <div class="grid" id="tocGrid"></div>
   </section>
 
   <div id="categoryRoot"></div>
-  <div class="footer" id="footerText"></div>
 </main>
 
 <script src="firebase-config.js"></script>

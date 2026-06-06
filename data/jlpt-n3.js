@@ -4,7 +4,7 @@ window.VOCAB_SETS = window.VOCAB_SETS || {};
 window.VOCAB_SETS['jlpt-n3'] = {
   "id": "jlpt-n3",
   "title": "JLPT N3 어휘",
-  "pageTitle": "JLPT N3 어휘 학습",
+  "pageTitle": "JLPT N3",
   "subtitle": "일단 합격 JLPT N3 단어 체크북 기반",
   "language": "ja-JP",
   "labels": {

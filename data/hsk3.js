@@ -2,7 +2,7 @@ window.VOCAB_SETS = window.VOCAB_SETS || {};
 window.VOCAB_SETS.hsk3 = {
   "id": "hsk3",
   "title": "HSK 3급 600단어",
-  "pageTitle": "HSK 3급 600단어 암기용 주제 분류",
+  "pageTitle": "HSK3",
   "subtitle": "단어를 사전순이 아니라 “시험에서 같이 나오는 장면” 기준으로 묶었습니다. 총 600개 단어.",
   "language": "zh-CN",
   "labels": {

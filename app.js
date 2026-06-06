@@ -1,6 +1,7 @@
 (function () {
   const manifest = window.VOCAB_SET_MANIFEST || [];
   const loadedScripts = new Set();
+  const HEADER_TITLE = '나만의단어장';
 
   const app = {
     set: null,
@@ -49,7 +50,9 @@
       navTitle: byId('navTitle'),
       landingPanel: byId('landingPanel'),
       landingGrid: byId('landingGrid'),
-      toggleHeaderButton: byId('toggleHeader'),
+      menuToggle: byId('menuToggle'),
+      appMenu: byId('appMenu'),
+      menuSubjectList: byId('menuSubjectList'),
       hideMeaningButton: byId('hideMeaning'),
       hidePinyinButton: byId('hidePinyin'),
       toggleCheckedButton: byId('toggleChecked'),
@@ -58,8 +61,7 @@
       tocPanel: byId('tocPanel'),
       categoryRoot: byId('categoryRoot'),
       quizPanel: byId('quizPanel'),
-      quizModeSelect: byId('quizMode'),
-      footerText: byId('footerText')
+      quizModeSelect: byId('quizMode')
     });
   }
 
@@ -124,6 +126,42 @@
     elements.setSelector.hidden = manifest.length <= 1;
   }
 
+  function renderSubjectMenu() {
+    elements.menuSubjectList.replaceChildren();
+
+    manifest.forEach((item) => {
+      const button = createElement('button', 'menu-item menu-subitem', item.title);
+      button.type = 'button';
+      button.dataset.setId = item.id;
+      button.addEventListener('click', () => {
+        closeMenu();
+        loadVocabularySet(item.id);
+      });
+      elements.menuSubjectList.appendChild(button);
+    });
+  }
+
+  function updateSubjectMenuActive(setId) {
+    elements.menuSubjectList.querySelectorAll('.menu-subitem').forEach((button) => {
+      button.classList.toggle('is-active', button.dataset.setId === setId);
+    });
+  }
+
+  function openMenu() {
+    elements.appMenu.hidden = false;
+    elements.menuToggle.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeMenu() {
+    elements.appMenu.hidden = true;
+    elements.menuToggle.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleMenu() {
+    if (elements.appMenu.hidden) openMenu();
+    else closeMenu();
+  }
+
   function examLabel(item) {
     if (/^hsk/i.test(item.id)) return 'HSK';
     if (/^jlpt/i.test(item.id)) return 'JLPT';
@@ -161,6 +199,7 @@
 
     document.body.classList.add('is-landing');
     document.body.classList.remove('pinyin-practice-active');
+    updateViewClasses();
     document.title = '어휘 학습';
     elements.pageTitle.textContent = '어휘 학습';
     elements.pageSubtitle.textContent = 'HSK/JLPT 중 학습할 단어장을 선택하세요.';
@@ -172,7 +211,7 @@
     elements.tocPanel.classList.add('hidden');
     elements.categoryRoot.replaceChildren();
     elements.tocGrid.replaceChildren();
-    elements.footerText.textContent = '';
+    updateSubjectMenuActive('');
   }
 
   function updateSetUrl(setId) {
@@ -205,13 +244,13 @@
 
     localStorage.setItem('vocab-current-set', setId);
     elements.setSelector.value = setId;
+    updateSubjectMenuActive(setId);
     if (!options.keepUrl) updateSetUrl(setId);
 
     document.body.classList.remove('is-landing');
     elements.landingPanel.hidden = true;
     renderSet(nextSet);
     bindRenderedChecks();
-    applyHeaderCollapsed(localStorage.getItem(setScopedKey('header-collapsed')) === '1');
     updateChrome();
     pickStudyVoice();
 
@@ -224,12 +263,9 @@
   }
 
   function updateChrome() {
-    document.title = app.set.pageTitle || app.set.title;
-    elements.pageTitle.textContent = app.set.pageTitle || app.set.title;
+    document.title = HEADER_TITLE;
+    elements.pageTitle.textContent = HEADER_TITLE;
     elements.pageSubtitle.textContent = app.set.subtitle || `${app.set.wordCount || countWords()}개 단어`;
-    elements.footerText.textContent = app.set.source
-      ? `Generated from uploaded workbook: ${app.set.source}`
-      : '';
   }
 
   function countWords() {
@@ -278,21 +314,6 @@
       section.appendChild(tip);
     }
 
-    if (category.examples?.length) {
-      const examples = createElement('div', 'examples');
-      examples.appendChild(createElement('b', '', '짧은 예문'));
-      const list = createElement('ul');
-      category.examples.forEach((example) => {
-        const item = createElement('li');
-        item.appendChild(createElement('span', 'ex-cn', example.front));
-        item.appendChild(document.createElement('br'));
-        item.appendChild(createElement('span', 'ex-py', example.note));
-        list.appendChild(item);
-      });
-      examples.appendChild(list);
-      section.appendChild(examples);
-    }
-
     const grid = createElement('div', 'card-grid');
     category.words.forEach((word) => {
       grid.appendChild(renderWordCard(word, category));
@@ -320,7 +341,7 @@
       const practiceInput = document.createElement('input');
       practiceInput.type = 'text';
       practiceInput.className = 'pinyin-practice-input';
-      practiceInput.placeholder = 'pinyin';
+      practiceInput.placeholder = word.reading || 'pinyin';
       practiceInput.autocomplete = 'off';
       practiceInput.autocapitalize = 'none';
       practiceInput.spellcheck = false;
@@ -328,8 +349,10 @@
       practiceInput.setAttribute('aria-label', `${word.front} 병음 입력`);
       card.appendChild(practiceInput);
     }
-    card.appendChild(createElement('div', 'meaning', word.meaning));
-    card.appendChild(createElement('span', 'pos', word.partOfSpeech));
+    const meaningRow = createElement('div', 'meaning-row');
+    if (word.partOfSpeech) meaningRow.appendChild(createElement('span', 'pos', word.partOfSpeech));
+    meaningRow.appendChild(createElement('span', 'meaning', word.meaning));
+    card.appendChild(meaningRow);
     return card;
   }
 
@@ -456,11 +479,17 @@
     if (panel === elements.quizPanel) panel.hidden = hidden;
   }
 
+  function updateViewClasses({ list = false, quiz = false } = {}) {
+    document.body.classList.toggle('has-list-view', Boolean(list));
+    document.body.classList.toggle('is-quiz-mode', Boolean(quiz));
+  }
+
   function applyView() {
     const panels = [...document.querySelectorAll('main > .panel')];
     const categories = [...document.querySelectorAll('.category')];
 
     if (app.quizActive) {
+      updateViewClasses({ quiz: true });
       panels.forEach((panel) => setPanelHidden(panel, panel !== elements.quizPanel));
       categories.forEach((section) => section.classList.add('hidden'));
       elements.navBar.hidden = false;
@@ -472,6 +501,7 @@
 
     const id = getCurrentCategoryId();
     if (app.pinyinPracticeActive && !id) {
+      updateViewClasses({ list: true });
       panels.forEach((panel) => setPanelHidden(panel, true));
       categories.forEach((section) => section.classList.remove('hidden'));
       elements.navBar.hidden = false;
@@ -480,6 +510,7 @@
     }
 
     if (id) {
+      updateViewClasses({ list: true });
       const target = document.getElementById(id);
       panels.forEach((panel) => setPanelHidden(panel, true));
       categories.forEach((section) => section.classList.toggle('hidden', section !== target));
@@ -487,6 +518,7 @@
       const title = target.querySelector('.cat-head h2');
       elements.navTitle.textContent = title ? title.childNodes[0].textContent.trim() : '';
     } else {
+      updateViewClasses();
       panels.forEach((panel) => setPanelHidden(panel, panel !== elements.tocPanel));
       categories.forEach((section) => section.classList.add('hidden'));
       elements.navBar.hidden = true;
@@ -543,12 +575,6 @@
     quizController.reset();
     applyFilters();
     window.scrollTo({ top: 0 });
-  }
-
-  function applyHeaderCollapsed(collapsed) {
-    document.body.classList.toggle('header-collapsed', collapsed);
-    elements.toggleHeaderButton.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-    elements.toggleHeaderButton.textContent = collapsed ? '펼치기 ▼' : '접기 ▲';
   }
 
   function pickStudyVoice() {
@@ -757,6 +783,21 @@
       loadVocabularySet(elements.setSelector.value);
     });
 
+    elements.menuToggle.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleMenu();
+    });
+
+    elements.appMenu.addEventListener('click', (event) => event.stopPropagation());
+
+    document.addEventListener('click', () => {
+      if (!elements.appMenu.hidden) closeMenu();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !elements.appMenu.hidden) closeMenu();
+    });
+
     elements.backToTocButton.addEventListener('click', () => {
       if (app.quizActive) {
         exitQuizMode();
@@ -793,12 +834,6 @@
       } else {
         applyFilters();
       }
-    });
-
-    elements.toggleHeaderButton.addEventListener('click', () => {
-      const collapsed = !document.body.classList.contains('header-collapsed');
-      localStorage.setItem(setScopedKey('header-collapsed'), collapsed ? '1' : '0');
-      applyHeaderCollapsed(collapsed);
     });
 
     elements.hideMeaningButton.addEventListener('click', () => {
@@ -842,6 +877,7 @@
     });
 
     elements.restoreRemovedButton.addEventListener('click', () => {
+      closeMenu();
       if (!app.removedKeys.size) return;
 
       if (confirm(`지운 단어 ${app.removedKeys.size}개를 다시 보이게 할까요?`)) {
@@ -879,6 +915,7 @@
     });
 
     elements.signInGoogleButton.addEventListener('click', async () => {
+      closeMenu();
       if (!auth) return;
 
       const provider = new firebaseApi.GoogleAuthProvider();
@@ -905,6 +942,7 @@
     });
 
     elements.signOutGoogleButton.addEventListener('click', async () => {
+      closeMenu();
       if (!auth) return;
 
       try {
@@ -924,6 +962,7 @@
   async function init() {
     cacheElements();
     populateSetSelector();
+    renderSubjectMenu();
     renderLanding();
     bindStaticEvents();
 
