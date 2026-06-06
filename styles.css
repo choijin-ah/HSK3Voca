@@ -357,6 +357,13 @@ tbody tr:hover{background:var(--soft-2)}
 .word-card .hanzi:hover{color:var(--accent2)}
 .word-card .hanzi:hover::after{opacity:.75}
 .word-card .hanzi:active::after{opacity:1}
+.furigana-term{font-family:"Noto Sans JP","Hiragino Sans","Yu Gothic","Noto Sans KR",sans-serif}
+.furigana-term ruby{ruby-position:over}
+.furigana-term rt{color:var(--accent2);font-size:.42em;font-weight:700;line-height:1}
+.furigana-term rt.hidden-pinyin{color:transparent;text-shadow:0 0 8px color-mix(in srgb,var(--accent2) 45%,transparent)}
+.word-card:hover .furigana-term rt.hidden-pinyin,
+.word-card.revealed .furigana-term rt.hidden-pinyin,
+.furigana-term rt.hidden-pinyin:hover{color:var(--accent2);text-shadow:none}
 .word-card .pinyin{font-size:15px}
 .pinyin-practice-input{
   display:none;width:100%;min-width:0;margin:4px 0;padding:8px 11px;border:1px solid var(--line-strong);
@@ -395,3 +402,35 @@ body.pinyin-practice-active .pinyin-practice-input{display:block}
   .panel,.category{box-shadow:none;break-inside:avoid;background:#fff} .examples,.tip{break-inside:avoid}
   .word-card{break-inside:avoid;box-shadow:none} input[type="checkbox"]{display:none} th{position:static}
 }
+
+/* ===== Custom words / sets ===== */
+.menu-add{color:var(--accent-ink);font-weight:600}
+.menu-subitem-wrap{display:flex;align-items:center;gap:4px}
+.menu-subitem-wrap .menu-subitem{flex:1}
+.subitem-delete{border:none;background:transparent;color:var(--muted);font-size:18px;line-height:1;padding:4px 8px;cursor:pointer;border-radius:8px}
+.subitem-delete:hover{color:var(--warn);background:var(--soft)}
+
+.word-card.is-custom{border-color:var(--accent);}
+.word-del{position:absolute;top:4px;right:4px;border:none;background:transparent;color:var(--muted);font-size:16px;line-height:1;width:22px;height:22px;border-radius:50%;cursor:pointer;opacity:0;transition:opacity .15s var(--ease)}
+.word-card{position:relative}
+.word-card:hover .word-del,.word-card.is-custom .word-del{opacity:.7}
+.word-del:hover{color:var(--warn);background:var(--soft);opacity:1}
+
+.landing-card.is-add{border-style:dashed;align-items:center;justify-content:center;text-align:center;color:var(--accent-ink)}
+.landing-card.is-add .landing-title{font-size:18px}
+
+/* ===== Modal ===== */
+.modal{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal[hidden]{display:none}
+.modal-backdrop{position:absolute;inset:0;background:rgba(38,34,29,.45);backdrop-filter:blur(2px)}
+.modal-card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:22px 20px;width:min(420px,100%);max-height:90vh;overflow:auto}
+.modal-card h3{margin:0 0 14px}
+.modal-field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;font-size:13px;color:var(--muted)}
+.modal-field input,.modal-field select{font:inherit;font-size:15px;color:var(--ink);padding:9px 11px;border:1px solid var(--line-strong);border-radius:10px;background:var(--paper)}
+.modal-field input:focus,.modal-field select:focus{outline:none;border-color:var(--accent)}
+.modal-actions{display:flex;gap:8px;margin-top:6px}
+.modal-actions button{flex:1;font:inherit;font-weight:600;padding:10px;border-radius:10px;border:1px solid var(--accent);background:var(--accent);color:var(--on-accent);cursor:pointer}
+.modal-actions button.ghost{background:transparent;color:var(--accent-ink)}
+.modal-actions button:hover{filter:brightness(1.05)}
+.modal-hint{margin:10px 0 0;font-size:13px;color:var(--ok);min-height:1em}
+.modal-hint.is-error{color:var(--warn)}

@@ -3,11 +3,15 @@
   const loadedScripts = new Set();
   const HEADER_TITLE = '나만의단어장';
 
+  const CUSTOM_CATEGORY_ID = '__custom__';
+  const CUSTOM_SETS_KEY = 'vocab-custom-sets';
+
   const app = {
     set: null,
     checks: [],
     removedKeys: new Set(),
     srs: {},
+    customWords: [],
     hideChecked: false,
     quizActive: false,
     reviewActive: false,
@@ -29,6 +33,8 @@
   let reviewController = null;
   let synth = window.speechSynthesis;
   let studyVoice = null;
+  let customSets = [];
+  let customSeq = 0;
 
   function byId(id) {
     return document.getElementById(id);
@@ -66,7 +72,26 @@
       categoryRoot: byId('categoryRoot'),
       quizPanel: byId('quizPanel'),
       reviewPanel: byId('reviewPanel'),
-      quizModeSelect: byId('quizMode')
+      quizModeSelect: byId('quizMode'),
+      addWordButton: byId('addWordButton'),
+      createSetMenu: byId('createSetMenu'),
+      wordFormModal: byId('wordFormModal'),
+      wordForm: byId('wordForm'),
+      wordFront: byId('wordFront'),
+      wordReading: byId('wordReading'),
+      wordMeaning: byId('wordMeaning'),
+      wordPos: byId('wordPos'),
+      wordFrontLabel: byId('wordFrontLabel'),
+      wordReadingLabel: byId('wordReadingLabel'),
+      wordMeaningLabel: byId('wordMeaningLabel'),
+      wordFormClose: byId('wordFormClose'),
+      wordFormHint: byId('wordFormHint'),
+      setFormModal: byId('setFormModal'),
+      setForm: byId('setForm'),
+      setTitle: byId('setTitle'),
+      setLanguage: byId('setLanguage'),
+      setFormClose: byId('setFormClose'),
+      setFormHint: byId('setFormHint')
     });
   }
 
@@ -83,6 +108,89 @@
 
   function supportsPinyinPractice(set = app.set) {
     return /^zh\b/i.test(set?.language || '');
+  }
+
+  function supportsFurigana(set = app.set) {
+    return /^ja\b/i.test(set?.language || '');
+  }
+
+  function hasKanji(text) {
+    return /[\u3400-\u9fff\uf900-\ufaff々〆ヵヶ]/.test(text);
+  }
+
+  function kanaOnly(text) {
+    return String(text || '').replace(/[^\u3040-\u30ffー]/g, '');
+  }
+
+  function tokenizeJapanese(text) {
+    const tokens = [];
+    let current = '';
+    let currentType = '';
+
+    [...String(text || '')].forEach((char) => {
+      const type = hasKanji(char) ? 'kanji' : 'text';
+      if (type !== currentType && current) {
+        tokens.push({ type: currentType, text: current });
+        current = '';
+      }
+      current += char;
+      currentType = type;
+    });
+
+    if (current) tokens.push({ type: currentType, text: current });
+    return tokens;
+  }
+
+  function nextKanaAnchor(tokens, startIndex) {
+    for (let i = startIndex + 1; i < tokens.length; i += 1) {
+      if (tokens[i].type !== 'text') continue;
+      const anchor = kanaOnly(tokens[i].text);
+      if (anchor) return anchor;
+    }
+    return '';
+  }
+
+  function appendRuby(parent, baseText, readingText) {
+    const ruby = document.createElement('ruby');
+    ruby.appendChild(document.createTextNode(baseText));
+    if (readingText) {
+      const rt = document.createElement('rt');
+      rt.textContent = readingText;
+      ruby.appendChild(rt);
+    }
+    parent.appendChild(ruby);
+  }
+
+  function renderFurigana(parent, word) {
+    const front = String(word.front || '');
+    const reading = String(word.reading || '');
+    if (!supportsFurigana() || !front || !reading || !hasKanji(front)) {
+      parent.textContent = front;
+      return false;
+    }
+
+    const tokens = tokenizeJapanese(front);
+    let readingIndex = 0;
+
+    tokens.forEach((token, index) => {
+      if (token.type === 'text') {
+        parent.appendChild(document.createTextNode(token.text));
+        const kana = kanaOnly(token.text);
+        if (kana && reading.startsWith(kana, readingIndex)) {
+          readingIndex += kana.length;
+        }
+        return;
+      }
+
+      const anchor = nextKanaAnchor(tokens, index);
+      const anchorIndex = anchor ? reading.indexOf(anchor, readingIndex) : -1;
+      const endIndex = anchorIndex >= readingIndex ? anchorIndex : reading.length;
+      const rubyReading = reading.slice(readingIndex, endIndex);
+      appendRuby(parent, token.text, rubyReading);
+      readingIndex = endIndex;
+    });
+
+    return true;
   }
 
   function loadRemovedKeys() {
@@ -107,6 +215,96 @@
 
   function saveSrsStore() {
     localStorage.setItem(setScopedKey('srs'), JSON.stringify(app.srs));
+  }
+
+  function sanitizeCustomWords(list) {
+    if (!Array.isArray(list)) return [];
+    return list
+      .filter((word) => word && (word.front || word.meaning))
+      .map((word) => ({
+        key: String(word.key || ''),
+        front: String(word.front || '').trim(),
+        reading: String(word.reading || '').trim(),
+        meaning: String(word.meaning || '').trim(),
+        partOfSpeech: word.partOfSpeech ? String(word.partOfSpeech).trim() : ''
+      }))
+      .filter((word) => word.key && (word.front || word.meaning));
+  }
+
+  function loadCustomWords() {
+    try {
+      return sanitizeCustomWords(JSON.parse(localStorage.getItem(setScopedKey('custom-words')) || '[]'));
+    } catch {
+      return [];
+    }
+  }
+
+  function saveCustomWords() {
+    localStorage.setItem(setScopedKey('custom-words'), JSON.stringify(app.customWords));
+  }
+
+  function makeCustomKey() {
+    customSeq += 1;
+    return `${app.set?.id || 'vocab'}-c-${Date.now().toString(36)}-${customSeq}`;
+  }
+
+  function customCategory() {
+    return {
+      id: CUSTOM_CATEGORY_ID,
+      title: '내 단어',
+      count: app.customWords.length,
+      priority: '추가',
+      description: '직접 추가한 단어입니다.',
+      words: app.customWords.map((word, index) => ({ ...word, number: index + 1 }))
+    };
+  }
+
+  function setCategories() {
+    const base = app.set?.categories || [];
+    if (!app.customWords.length) return base;
+    return [...base, customCategory()];
+  }
+
+  function loadCustomSets() {
+    try {
+      const list = JSON.parse(localStorage.getItem(CUSTOM_SETS_KEY) || '[]');
+      return Array.isArray(list) ? list.filter((item) => item && item.id && item.title) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveCustomSets() {
+    localStorage.setItem(CUSTOM_SETS_KEY, JSON.stringify(customSets));
+  }
+
+  function languageLabels(language) {
+    if (/^zh\b/i.test(language)) return { front: '중국어', reading: '병음', meaning: '뜻' };
+    if (/^ja\b/i.test(language)) return { front: '일본어', reading: '읽기', meaning: '뜻' };
+    return { front: '단어', reading: '읽기', meaning: '뜻' };
+  }
+
+  function buildCustomSetObject(meta) {
+    return {
+      id: meta.id,
+      title: meta.title,
+      pageTitle: meta.title,
+      subtitle: meta.subtitle || '직접 만든 단어장',
+      language: meta.language || 'other',
+      labels: meta.labels || languageLabels(meta.language),
+      categories: [],
+      isCustomSet: true
+    };
+  }
+
+  function registerCustomSets() {
+    window.VOCAB_SETS = window.VOCAB_SETS || {};
+    customSets.forEach((meta) => {
+      if (!manifest.some((item) => item.id === meta.id)) {
+        manifest.push({ id: meta.id, title: meta.title, isCustom: true });
+      }
+      window.VOCAB_SETS[meta.id] = buildCustomSetObject(meta);
+    });
   }
 
   function loadScript(src) {
@@ -154,7 +352,25 @@
         closeMenu();
         loadVocabularySet(item.id);
       });
-      elements.menuSubjectList.appendChild(button);
+
+      if (!item.isCustom) {
+        elements.menuSubjectList.appendChild(button);
+        return;
+      }
+
+      const wrap = createElement('div', 'menu-subitem-wrap');
+      wrap.appendChild(button);
+      const del = createElement('button', 'subitem-delete', '×');
+      del.type = 'button';
+      del.setAttribute('aria-label', `${item.title} 단어장 삭제`);
+      del.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (confirm(`'${item.title}' 단어장을 삭제할까요? 추가한 단어도 함께 삭제됩니다.`)) {
+          deleteCustomSet(item.id);
+        }
+      });
+      wrap.appendChild(del);
+      elements.menuSubjectList.appendChild(wrap);
     });
   }
 
@@ -205,12 +421,22 @@
       button.addEventListener('click', () => loadVocabularySet(item.id));
       elements.landingGrid.appendChild(button);
     });
+
+    const addCard = createElement('button', 'landing-card is-add');
+    addCard.type = 'button';
+    const addHead = createElement('span', 'landing-head');
+    addHead.appendChild(createElement('span', 'landing-kicker', '직접 만들기'));
+    addHead.appendChild(createElement('span', 'landing-title', '＋ 새 단어장'));
+    addCard.appendChild(addHead);
+    addCard.addEventListener('click', openSetForm);
+    elements.landingGrid.appendChild(addCard);
   }
 
   function showLanding() {
     app.set = null;
     app.checks = [];
     app.srs = {};
+    app.customWords = [];
     app.quizActive = false;
     app.reviewActive = false;
     app.pinyinPracticeActive = false;
@@ -230,6 +456,7 @@
     elements.tocPanel.classList.add('hidden');
     elements.categoryRoot.replaceChildren();
     elements.tocGrid.replaceChildren();
+    elements.addWordButton.hidden = true;
     updateSubjectMenuActive('');
   }
 
@@ -263,7 +490,7 @@
     const entry = manifest.find((item) => item.id === setId);
     if (!entry) return;
 
-    if (!window.VOCAB_SETS?.[setId]) {
+    if (!window.VOCAB_SETS?.[setId] && entry.dataFile) {
       await loadScript(entry.dataFile);
     }
 
@@ -273,6 +500,7 @@
     }
 
     app.set = nextSet;
+    app.customWords = loadCustomWords();
     app.removedKeys = loadRemovedKeys();
     app.srs = loadSrsStore();
     app.hideChecked = localStorage.getItem(setScopedKey('hide-checked')) === '1';
@@ -289,8 +517,7 @@
 
     document.body.classList.remove('is-landing');
     elements.landingPanel.hidden = true;
-    renderSet(nextSet);
-    bindRenderedChecks();
+    renderCurrentSet();
     updateChrome();
     pickStudyVoice();
 
@@ -309,17 +536,22 @@
   }
 
   function countWords() {
-    return app.set.categories.reduce((total, category) => total + category.words.length, 0);
+    return setCategories().reduce((total, category) => total + category.words.length, 0);
   }
 
-  function renderSet(set) {
+  function renderSet() {
     elements.tocGrid.replaceChildren();
     elements.categoryRoot.replaceChildren();
 
-    set.categories.forEach((category) => {
+    setCategories().forEach((category) => {
       elements.tocGrid.appendChild(renderTocCard(category));
       elements.categoryRoot.appendChild(renderCategory(category));
     });
+  }
+
+  function renderCurrentSet() {
+    renderSet();
+    bindRenderedChecks();
   }
 
   function renderTocCard(category) {
@@ -363,8 +595,17 @@
     return section;
   }
 
-  function renderWordCard(word) {
+  function renderWordCard(word, category) {
     const card = createElement('div', 'word-card');
+
+    if (category && category.id === CUSTOM_CATEGORY_ID) {
+      card.classList.add('is-custom');
+      const del = createElement('button', 'word-del', '×');
+      del.type = 'button';
+      del.dataset.key = word.key;
+      del.setAttribute('aria-label', `${word.front} 삭제`);
+      card.appendChild(del);
+    }
 
     const label = createElement('label', 'card-check');
     const input = document.createElement('input');
@@ -375,8 +616,17 @@
 
     card.appendChild(label);
     card.appendChild(createElement('span', 'num', word.number));
-    card.appendChild(createElement('div', 'hanzi', word.front));
-    card.appendChild(createElement('div', 'pinyin', word.reading));
+    const front = createElement('div', 'hanzi');
+    front.dataset.speech = word.front;
+    const hasFurigana = renderFurigana(front, word);
+    if (hasFurigana) {
+      card.classList.add('has-furigana');
+      front.classList.add('furigana-term');
+    }
+    card.appendChild(front);
+    if (!supportsFurigana()) {
+      card.appendChild(createElement('div', 'pinyin', word.reading));
+    }
     if (supportsPinyinPractice()) {
       const practiceInput = document.createElement('input');
       practiceInput.type = 'text';
@@ -443,11 +693,18 @@
       removedKeys: [...app.removedKeys],
       hideChecked: app.hideChecked,
       srs: app.srs,
-      version: 3
+      customWords: app.customWords,
+      version: 4
     };
   }
 
   function applyStudyState(state) {
+    if (Array.isArray(state.customWords)) {
+      app.customWords = sanitizeCustomWords(state.customWords);
+      saveCustomWords();
+      renderCurrentSet();
+    }
+
     const checkedKeys = new Set(Array.isArray(state.checkedKeys) ? state.checkedKeys : []);
     const nextRemovedKeys = new Set(Array.isArray(state.removedKeys) ? state.removedKeys : []);
 
@@ -513,6 +770,7 @@
     elements.pinyinPracticeButton.textContent = app.pinyinPracticeActive ? '쓰기 연습 종료' : '쓰기 연습 모드';
     elements.pinyinPracticeButton.setAttribute('aria-pressed', app.pinyinPracticeActive ? 'true' : 'false');
     elements.quizModeButton.textContent = app.quizActive ? '퀴즈 종료' : '퀴즈 모드';
+    elements.addWordButton.hidden = !app.set || app.quizActive || app.reviewActive;
     updateReviewButton();
   }
 
@@ -607,7 +865,7 @@
     if (!app.set) return [];
 
     const checkedByKey = new Map(app.checks.map((checkbox) => [checkbox.dataset.key, checkbox.checked]));
-    const words = app.set.categories.flatMap((category) => category.words.map((word) => ({
+    const words = setCategories().flatMap((category) => category.words.map((word) => ({
       ...word,
       category: category.title,
       checked: Boolean(checkedByKey.get(word.key)),
@@ -655,7 +913,7 @@
     const due = [];
     const fresh = [];
 
-    app.set.categories.forEach((category) => {
+    setCategories().forEach((category) => {
       category.words.forEach((word) => {
         if (app.removedKeys.has(word.key)) return;
 
@@ -912,6 +1170,7 @@
         currentUser = user;
         updateAccountUI();
         if (currentUser) {
+          await loadCustomSetsCloud();
           await loadCloudState();
         } else {
           setSyncStatus('브라우저에만 저장 중');
@@ -924,6 +1183,177 @@
       elements.accountText.textContent = 'Firebase 연결 실패';
       setSyncStatus('브라우저 저장');
     }
+  }
+
+  function refreshSetNav() {
+    populateSetSelector();
+    renderSubjectMenu();
+    renderLanding();
+    if (app.set) {
+      elements.setSelector.value = app.set.id;
+      updateSubjectMenuActive(app.set.id);
+    }
+  }
+
+  function addCustomWord(data) {
+    const front = (data.front || '').trim();
+    const meaning = (data.meaning || '').trim();
+    if (!front && !meaning) return false;
+
+    app.customWords.push({
+      key: makeCustomKey(),
+      front,
+      reading: (data.reading || '').trim(),
+      meaning,
+      partOfSpeech: (data.partOfSpeech || '').trim()
+    });
+    saveCustomWords();
+    renderCurrentSet();
+    applyFilters();
+    scheduleCloudSave();
+    return true;
+  }
+
+  function deleteCustomWord(key) {
+    const index = app.customWords.findIndex((word) => word.key === key);
+    if (index === -1) return;
+
+    app.customWords.splice(index, 1);
+    saveCustomWords();
+    localStorage.removeItem(key);
+    if (app.srs[key]) {
+      delete app.srs[key];
+      saveSrsStore();
+    }
+    if (app.removedKeys.delete(key)) saveRemovedKeys();
+
+    renderCurrentSet();
+    applyFilters();
+    scheduleCloudSave();
+  }
+
+  function slugifySetId(title) {
+    const base = String(title).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    return `custom-${base || 'set'}-${Date.now().toString(36)}`;
+  }
+
+  function createCustomSet(data) {
+    const title = (data.title || '').trim();
+    if (!title) return null;
+
+    const language = data.language || 'other';
+    const meta = {
+      id: slugifySetId(title),
+      title,
+      language,
+      labels: languageLabels(language),
+      custom: true
+    };
+
+    customSets.push(meta);
+    saveCustomSets();
+    registerCustomSets();
+    refreshSetNav();
+    saveCustomSetsCloud();
+    return meta;
+  }
+
+  function deleteCustomSet(id) {
+    const index = customSets.findIndex((meta) => meta.id === id);
+    if (index === -1) return;
+
+    customSets.splice(index, 1);
+    saveCustomSets();
+
+    const manifestIndex = manifest.findIndex((item) => item.id === id);
+    if (manifestIndex !== -1) manifest.splice(manifestIndex, 1);
+    if (window.VOCAB_SETS) delete window.VOCAB_SETS[id];
+
+    ['custom-words', 'removed-words', 'srs', 'hide-checked'].forEach((name) => {
+      localStorage.removeItem(`${id}-${name}`);
+    });
+
+    const leavingActive = app.set?.id === id;
+    if (leavingActive) goToLanding();
+    refreshSetNav();
+    saveCustomSetsCloud();
+  }
+
+  function customSetsDocRef() {
+    return firebaseApi.doc(db, 'users', currentUser.uid, 'meta', 'customSets');
+  }
+
+  async function saveCustomSetsCloud() {
+    if (!currentUser || !db) return;
+
+    try {
+      await firebaseApi.setDoc(customSetsDocRef(), {
+        sets: customSets,
+        updatedAt: firebaseApi.serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async function loadCustomSetsCloud() {
+    if (!currentUser || !db) return;
+
+    try {
+      const snap = await firebaseApi.getDoc(customSetsDocRef());
+      if (!snap.exists()) {
+        await saveCustomSetsCloud();
+        return;
+      }
+
+      const remote = snap.data().sets;
+      if (!Array.isArray(remote)) return;
+
+      const byId = new Map(customSets.map((meta) => [meta.id, meta]));
+      remote.forEach((meta) => {
+        if (meta && meta.id && meta.title) byId.set(meta.id, meta);
+      });
+      customSets = [...byId.values()];
+      saveCustomSets();
+      registerCustomSets();
+      refreshSetNav();
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  function openWordForm() {
+    if (!app.set) return;
+
+    const labels = app.set.labels || {};
+    elements.wordFrontLabel.textContent = labels.front || '단어';
+    elements.wordReadingLabel.textContent = labels.reading || '읽기';
+    elements.wordMeaningLabel.textContent = labels.meaning || '뜻';
+    elements.wordForm.reset();
+    elements.wordFormHint.textContent = '';
+    elements.wordFormHint.classList.remove('is-error');
+    elements.wordFormModal.hidden = false;
+    elements.wordFront.focus();
+  }
+
+  function closeWordForm(navigate) {
+    elements.wordFormModal.hidden = true;
+    if (navigate && app.customWords.length) {
+      location.hash = `#${encodeURIComponent(CUSTOM_CATEGORY_ID)}`;
+    }
+  }
+
+  function openSetForm() {
+    closeMenu();
+    elements.setForm.reset();
+    elements.setFormHint.textContent = '';
+    elements.setFormHint.classList.remove('is-error');
+    elements.setFormModal.hidden = false;
+    elements.setTitle.focus();
+  }
+
+  function closeSetForm() {
+    elements.setFormModal.hidden = true;
   }
 
   function bindStaticEvents() {
@@ -1009,15 +1439,23 @@
 
     elements.hidePinyinButton.addEventListener('click', () => {
       document.querySelectorAll('.pinyin').forEach((element) => element.classList.toggle('hidden-pinyin'));
+      document.querySelectorAll('.furigana-term rt').forEach((element) => element.classList.toggle('hidden-pinyin'));
     });
 
     document.addEventListener('click', (event) => {
+      const delButton = event.target.closest('.word-del');
+      if (delButton) {
+        event.stopPropagation();
+        deleteCustomWord(delButton.dataset.key);
+        return;
+      }
+
       const card = event.target.closest('.word-card');
       if (!card || event.target.closest('.card-check') || event.target.closest('.pinyin-practice-input')) return;
 
       const front = event.target.closest('.hanzi');
       if (front) {
-        speakStudyText(front.textContent.trim());
+        speakStudyText(front.dataset.speech || front.textContent.trim());
         return;
       }
 
@@ -1090,6 +1528,65 @@
       }
     });
 
+    elements.addWordButton.addEventListener('click', openWordForm);
+
+    elements.wordForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const added = addCustomWord({
+        front: elements.wordFront.value,
+        reading: elements.wordReading.value,
+        meaning: elements.wordMeaning.value,
+        partOfSpeech: elements.wordPos.value
+      });
+
+      if (!added) {
+        elements.wordFormHint.textContent = '단어와 뜻 중 하나는 입력해 주세요.';
+        elements.wordFormHint.classList.add('is-error');
+        return;
+      }
+
+      elements.wordFormHint.textContent = '추가되었습니다. 계속 입력할 수 있어요.';
+      elements.wordFormHint.classList.remove('is-error');
+      elements.wordForm.reset();
+      elements.wordFront.focus();
+    });
+
+    elements.wordFormClose.addEventListener('click', () => closeWordForm(true));
+
+    elements.createSetMenu.addEventListener('click', openSetForm);
+
+    elements.setForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const meta = createCustomSet({
+        title: elements.setTitle.value,
+        language: elements.setLanguage.value
+      });
+
+      if (!meta) {
+        elements.setFormHint.textContent = '단어장 이름을 입력해 주세요.';
+        elements.setFormHint.classList.add('is-error');
+        return;
+      }
+
+      closeSetForm();
+      loadVocabularySet(meta.id);
+    });
+
+    elements.setFormClose.addEventListener('click', closeSetForm);
+
+    [elements.wordFormModal, elements.setFormModal].forEach((modal) => {
+      modal.querySelector('.modal-backdrop').addEventListener('click', () => {
+        if (modal === elements.wordFormModal) closeWordForm(true);
+        else closeSetForm();
+      });
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (!elements.wordFormModal.hidden) closeWordForm(false);
+      if (!elements.setFormModal.hidden) closeSetForm();
+    });
+
     elements.signInGoogleButton.addEventListener('click', async () => {
       closeMenu();
       if (!auth) return;
@@ -1137,6 +1634,8 @@
 
   async function init() {
     cacheElements();
+    customSets = loadCustomSets();
+    registerCustomSets();
     populateSetSelector();
     renderSubjectMenu();
     renderLanding();
