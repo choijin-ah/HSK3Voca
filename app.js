@@ -8,6 +8,7 @@
     removedKeys: new Set(),
     hideChecked: false,
     quizActive: false,
+    pinyinPracticeActive: false,
     landingActive: false
   };
 
@@ -34,8 +35,8 @@
       pageTitle: byId('pageTitle'),
       pageSubtitle: byId('pageSubtitle'),
       setSelector: byId('setSelector'),
-      search: byId('searchBox'),
       restoreRemovedButton: byId('restoreRemoved'),
+      pinyinPracticeButton: byId('pinyinPracticeButton'),
       printButton: byId('printButton'),
       clearChecksButton: byId('clearChecks'),
       quizModeButton: byId('quizModeButton'),
@@ -67,10 +68,6 @@
     if (className) element.className = className;
     if (text !== undefined && text !== null) element.textContent = text;
     return element;
-  }
-
-  function normalizeSearch(text) {
-    return String(text || '').trim().toLocaleLowerCase();
   }
 
   function setScopedKey(name) {
@@ -147,13 +144,14 @@
     app.set = null;
     app.checks = [];
     app.quizActive = false;
+    app.pinyinPracticeActive = false;
     app.landingActive = true;
 
     document.body.classList.add('is-landing');
+    document.body.classList.remove('pinyin-practice-active');
     document.title = '어휘 학습';
     elements.pageTitle.textContent = '어휘 학습';
     elements.pageSubtitle.textContent = 'HSK/JLPT 중 학습할 단어장을 선택하세요.';
-    elements.search.value = '';
     elements.progressText.textContent = '';
     elements.navBar.hidden = true;
     elements.navTitle.textContent = '';
@@ -189,7 +187,9 @@
     app.removedKeys = loadRemovedKeys();
     app.hideChecked = localStorage.getItem(setScopedKey('hide-checked')) === '1';
     app.quizActive = false;
+    app.pinyinPracticeActive = false;
     app.landingActive = false;
+    document.body.classList.remove('pinyin-practice-active');
 
     localStorage.setItem('vocab-current-set', setId);
     elements.setSelector.value = setId;
@@ -215,7 +215,6 @@
     document.title = app.set.pageTitle || app.set.title;
     elements.pageTitle.textContent = app.set.pageTitle || app.set.title;
     elements.pageSubtitle.textContent = app.set.subtitle || `${app.set.wordCount || countWords()}개 단어`;
-    elements.search.placeholder = app.set.searchPlaceholder || '단어, 읽기, 뜻, 분류명으로 검색';
     elements.footerText.textContent = app.set.source
       ? `Generated from uploaded workbook: ${app.set.source}`
       : '';
@@ -291,15 +290,8 @@
     return section;
   }
 
-  function renderWordCard(word, category) {
+  function renderWordCard(word) {
     const card = createElement('div', 'word-card');
-    card.dataset.search = normalizeSearch([
-      word.front,
-      word.reading,
-      word.partOfSpeech,
-      word.meaning,
-      category.title
-    ].join(' '));
 
     const label = createElement('label', 'card-check');
     const input = document.createElement('input');
@@ -308,10 +300,21 @@
     input.dataset.key = word.key;
     label.appendChild(input);
 
+    const practiceInput = document.createElement('input');
+    practiceInput.type = 'text';
+    practiceInput.className = 'pinyin-practice-input';
+    practiceInput.placeholder = 'pinyin';
+    practiceInput.autocomplete = 'off';
+    practiceInput.autocapitalize = 'none';
+    practiceInput.spellcheck = false;
+    practiceInput.inputMode = 'latin';
+    practiceInput.setAttribute('aria-label', `${word.front} 병음 입력`);
+
     card.appendChild(label);
     card.appendChild(createElement('span', 'num', word.number));
     card.appendChild(createElement('div', 'hanzi', word.front));
     card.appendChild(createElement('div', 'pinyin', word.reading));
+    card.appendChild(practiceInput);
     card.appendChild(createElement('div', 'meaning', word.meaning));
     card.appendChild(createElement('span', 'pos', word.partOfSpeech));
     return card;
@@ -343,6 +346,19 @@
 
   function getCheckedKeys() {
     return app.checks.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.dataset.key);
+  }
+
+  function clearPinyinPracticeInputs() {
+    document.querySelectorAll('.pinyin-practice-input').forEach((input) => {
+      input.value = '';
+    });
+  }
+
+  function setPinyinPracticeActive(active) {
+    app.pinyinPracticeActive = Boolean(active);
+    document.body.classList.toggle('pinyin-practice-active', app.pinyinPracticeActive);
+    if (!app.pinyinPracticeActive) clearPinyinPracticeInputs();
+    updateControls();
   }
 
   function getStudyState() {
@@ -385,13 +401,7 @@
   }
 
   function checkedForRemoval() {
-    const query = normalizeSearch(elements.search.value);
-    return app.checks.filter((checkbox) => {
-      const card = checkbox.closest('.word-card');
-      return checkbox.checked &&
-        !app.removedKeys.has(checkbox.dataset.key) &&
-        (!query || card.dataset.search.includes(query));
-    });
+    return app.checks.filter((checkbox) => checkbox.checked && !app.removedKeys.has(checkbox.dataset.key));
   }
 
   function updateControls() {
@@ -399,6 +409,8 @@
     elements.toggleCheckedButton.setAttribute('aria-pressed', app.hideChecked ? 'true' : 'false');
     elements.removeCheckedButton.disabled = checkedForRemoval().length === 0;
     elements.restoreRemovedButton.disabled = app.removedKeys.size === 0;
+    elements.pinyinPracticeButton.textContent = app.pinyinPracticeActive ? '병음 연습 종료' : '병음 연습';
+    elements.pinyinPracticeButton.setAttribute('aria-pressed', app.pinyinPracticeActive ? 'true' : 'false');
     elements.quizModeButton.textContent = app.quizActive ? '퀴즈 종료' : '퀴즈 모드';
   }
 
@@ -413,7 +425,7 @@
     if (panel === elements.quizPanel) panel.hidden = hidden;
   }
 
-  function applyView(query) {
+  function applyView() {
     const panels = [...document.querySelectorAll('main > .panel')];
     const categories = [...document.querySelectorAll('.category')];
 
@@ -427,19 +439,15 @@
 
     setPanelHidden(elements.quizPanel, true);
 
-    if (query) {
+    const id = getCurrentCategoryId();
+    if (app.pinyinPracticeActive && !id) {
       panels.forEach((panel) => setPanelHidden(panel, true));
-      categories.forEach((section) => {
-        const hasMatch = [...section.querySelectorAll('.word-card')]
-          .some((card) => !card.classList.contains('hidden'));
-        section.classList.toggle('hidden', !hasMatch);
-      });
+      categories.forEach((section) => section.classList.remove('hidden'));
       elements.navBar.hidden = false;
-      elements.navTitle.textContent = `"${elements.search.value.trim()}" 검색 결과`;
+      elements.navTitle.textContent = '병음 연습';
       return;
     }
 
-    const id = getCurrentCategoryId();
     if (id) {
       const target = document.getElementById(id);
       panels.forEach((panel) => setPanelHidden(panel, true));
@@ -458,17 +466,15 @@
   function applyFilters() {
     if (!app.set) return;
 
-    const query = normalizeSearch(elements.search.value);
     document.querySelectorAll('.word-card').forEach((card) => {
       const checkbox = card.querySelector('.word-check');
-      const hiddenBySearch = query && !card.dataset.search.includes(query);
       const hiddenByChecked = app.hideChecked && checkbox.checked;
       const hiddenByRemoved = app.removedKeys.has(checkbox.dataset.key);
 
-      card.classList.toggle('hidden', Boolean(hiddenBySearch || hiddenByChecked || hiddenByRemoved));
+      card.classList.toggle('hidden', Boolean(hiddenByChecked || hiddenByRemoved));
     });
 
-    applyView(query);
+    applyView();
     updateProgress();
     updateControls();
     if (quizController && app.quizActive) quizController.refresh();
@@ -493,7 +499,7 @@
 
   function enterQuizMode() {
     app.quizActive = true;
-    elements.search.value = '';
+    setPinyinPracticeActive(false);
     if (location.hash) {
       history.replaceState(null, document.title, location.pathname + location.search);
     }
@@ -717,12 +723,10 @@
 
   function bindStaticEvents() {
     elements.setSelector.addEventListener('change', () => {
-      elements.search.value = '';
       loadVocabularySet(elements.setSelector.value);
     });
 
     elements.printButton.addEventListener('click', () => window.print());
-    elements.search.addEventListener('input', applyFilters);
 
     elements.backToTocButton.addEventListener('click', () => {
       if (app.quizActive) {
@@ -730,9 +734,14 @@
         return;
       }
 
-      if (elements.search.value.trim()) {
-        elements.search.value = '';
-      } else if (location.hash) {
+      if (app.pinyinPracticeActive) {
+        setPinyinPracticeActive(false);
+        applyFilters();
+        window.scrollTo({ top: 0 });
+        return;
+      }
+
+      if (location.hash) {
         history.replaceState(null, document.title, location.pathname + location.search);
       }
 
@@ -773,7 +782,7 @@
 
     document.addEventListener('click', (event) => {
       const card = event.target.closest('.word-card');
-      if (!card || event.target.closest('.card-check')) return;
+      if (!card || event.target.closest('.card-check') || event.target.closest('.pinyin-practice-input')) return;
 
       const front = event.target.closest('.hanzi');
       if (front) {
@@ -795,8 +804,7 @@
       const selected = checkedForRemoval();
       if (!selected.length) return;
 
-      const scopeText = elements.search.value.trim() ? '현재 검색 결과에서 ' : '';
-      if (confirm(`${scopeText}체크한 단어 ${selected.length}개를 목록에서 지울까요?`)) {
+      if (confirm(`체크한 단어 ${selected.length}개를 목록에서 지울까요?`)) {
         selected.forEach((checkbox) => app.removedKeys.add(checkbox.dataset.key));
         saveRemovedKeys();
         applyFilters();
@@ -824,6 +832,12 @@
         applyFilters();
         scheduleCloudSave();
       }
+    });
+
+    elements.pinyinPracticeButton.addEventListener('click', () => {
+      if (app.quizActive) exitQuizMode();
+      setPinyinPracticeActive(!app.pinyinPracticeActive);
+      applyFilters();
     });
 
     elements.quizModeButton.addEventListener('click', () => {
