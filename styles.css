@@ -36,6 +36,14 @@ main{max-width:1180px;margin:0 auto;padding:24px;} .panel{background:var(--paper
 .quiz-meta{color:var(--muted);font-size:13px;font-weight:700}
 .quiz-prompt{font-family:"Noto Sans SC","Microsoft YaHei","Noto Sans KR",serif;font-size:42px;font-weight:800;line-height:1.15}
 .quiz-reading{color:var(--accent2);font-weight:700;min-height:24px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.quiz-input{display:flex;align-items:center;gap:8px;margin-top:6px}
+.quiz-input[hidden]{display:none}
+.quiz-input input{flex:1;min-width:220px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;font-size:18px}
+.quiz-input input:focus{outline:2px solid rgba(47,111,115,.24);border-color:var(--accent2)}
+.quiz-feedback{min-height:22px;font-weight:800}
+.quiz-feedback.is-correct{color:var(--accent2)}
+.quiz-feedback.is-incorrect{color:var(--warn)}
 .quiz-answer{border-top:1px solid var(--line);margin-top:8px;padding-top:12px;font-size:22px;font-weight:800}
 .quiz-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;padding:14px;background:#fff;border:1px solid var(--line);border-radius:14px}
@@ -62,4 +70,5 @@ main{max-width:1180px;margin:0 auto;padding:24px;} .panel{background:var(--paper
   .card-grid{padding:0;border:none;background:transparent;border-radius:0;gap:8px;}
 }
 @media (max-width:480px){.card-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}}
+@media (max-width:480px){.quiz-input{align-items:stretch;flex-direction:column}.quiz-input input{min-width:0;width:100%}.quiz-input button{width:100%}}
 @media print{.toolbar,.sticky-controls{display:none} body{background:#fff} header{background:#fff;color:#000;border-bottom:2px solid #000}.subtitle{color:#333}.panel,.category{box-shadow:none;break-inside:avoid} .examples,.tip{break-inside:avoid} .word-card{break-inside:avoid} input[type="checkbox"]{display:none} th{position:static}}

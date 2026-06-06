@@ -60,6 +60,7 @@
       <div class="quiz-options">
         <select id="quizMode" aria-label="퀴즈 방식">
           <option value="front-meaning">단어 → 뜻</option>
+          <option value="front-pinyin-input">단어 → 병음 입력</option>
           <option value="meaning-front">뜻 → 단어</option>
           <option value="reading-front">읽기 → 단어</option>
         </select>
@@ -76,6 +77,12 @@
       <div class="quiz-meta" id="quizMeta"></div>
       <div class="quiz-prompt" id="quizPrompt"></div>
       <div class="quiz-reading" id="quizReading"></div>
+      <form class="quiz-input" id="quizInputForm" hidden>
+        <label class="sr-only" for="quizPinyinInput">병음 입력</label>
+        <input id="quizPinyinInput" type="text" inputmode="latin" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="pinyin">
+        <button id="submitQuizPinyin" type="submit">확인</button>
+      </form>
+      <div class="quiz-feedback" id="quizFeedback" aria-live="polite" hidden></div>
       <div class="quiz-answer" id="quizAnswer" hidden></div>
     </div>
     <div class="quiz-actions">
