@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>어휘 학습</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -13,7 +14,8 @@
       <h1 id="pageTitle">어휘 학습</h1>
       <p class="subtitle" id="pageSubtitle"></p>
       <button id="menuToggle" type="button" class="menu-toggle" aria-label="메뉴" aria-expanded="false" aria-controls="appMenu">
-        <span class="menu-bars" aria-hidden="true"></span>
+        <i class="fa-solid fa-bars menu-icon menu-icon-open" aria-hidden="true"></i>
+        <i class="fa-solid fa-xmark menu-icon menu-icon-close" aria-hidden="true"></i>
       </button>
     </div>
     <nav id="appMenu" class="app-menu" aria-label="메뉴" hidden>
@@ -34,6 +36,7 @@
 
 <div class="toolbar">
   <div class="tool-inner">
+    <button id="reviewButton" type="button">복습</button>
     <button id="pinyinPracticeButton" type="button" aria-pressed="false">쓰기 연습 모드</button>
     <button id="quizModeButton" type="button">퀴즈 모드</button>
     <button id="clearChecks" type="button">체크 초기화</button>
@@ -102,6 +105,31 @@
     </div>
   </section>
 
+  <section class="panel review-panel" id="reviewPanel" hidden>
+    <div class="review-top">
+      <h2>복습</h2>
+      <span class="review-progress" id="reviewProgress"></span>
+    </div>
+    <div class="review-card" id="reviewCard">
+      <div class="review-meta" id="reviewMeta"></div>
+      <div class="review-front" id="reviewFront"></div>
+      <button id="reviewSpeak" type="button" class="review-speak" aria-label="발음 듣기">🔊 발음</button>
+      <div class="review-back" id="reviewBack" hidden>
+        <div class="review-reading" id="reviewReading"></div>
+        <div class="review-meaning" id="reviewMeaning"></div>
+      </div>
+    </div>
+    <div class="review-done" id="reviewDone" hidden></div>
+    <div class="review-actions">
+      <button id="reviewShow" type="button">정답 보기</button>
+      <div class="review-grades" id="reviewGrades" hidden>
+        <button type="button" data-grade="again" class="grade-again">모름 <span class="grade-hint"></span></button>
+        <button type="button" data-grade="hard" class="grade-hard">애매 <span class="grade-hint"></span></button>
+        <button type="button" data-grade="good" class="grade-good">알아요 <span class="grade-hint"></span></button>
+      </div>
+    </div>
+  </section>
+
   <section class="panel" id="tocPanel">
     <div class="toc-tools">
       <label class="sr-only" for="setSelector">과목 선택</label>
@@ -117,6 +145,7 @@
 <script src="firebase-config.js"></script>
 <script src="data/sets.js"></script>
 <script src="quiz.js"></script>
+<script src="srs.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

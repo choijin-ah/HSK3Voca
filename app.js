@@ -7,8 +7,10 @@
     set: null,
     checks: [],
     removedKeys: new Set(),
+    srs: {},
     hideChecked: false,
     quizActive: false,
+    reviewActive: false,
     pinyinPracticeActive: false,
     landingActive: false
   };
@@ -24,6 +26,7 @@
   let saveTimer = null;
   let loadingCloudState = false;
   let quizController = null;
+  let reviewController = null;
   let synth = window.speechSynthesis;
   let studyVoice = null;
 
@@ -40,6 +43,7 @@
       pinyinPracticeButton: byId('pinyinPracticeButton'),
       clearChecksButton: byId('clearChecks'),
       quizModeButton: byId('quizModeButton'),
+      reviewButton: byId('reviewButton'),
       signInGoogleButton: byId('signInGoogle'),
       signOutGoogleButton: byId('signOutGoogle'),
       accountText: byId('accountText'),
@@ -61,6 +65,7 @@
       tocPanel: byId('tocPanel'),
       categoryRoot: byId('categoryRoot'),
       quizPanel: byId('quizPanel'),
+      reviewPanel: byId('reviewPanel'),
       quizModeSelect: byId('quizMode')
     });
   }
@@ -90,6 +95,18 @@
 
   function saveRemovedKeys() {
     localStorage.setItem(setScopedKey('removed-words'), JSON.stringify([...app.removedKeys]));
+  }
+
+  function loadSrsStore() {
+    try {
+      return JSON.parse(localStorage.getItem(setScopedKey('srs')) || '{}') || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveSrsStore() {
+    localStorage.setItem(setScopedKey('srs'), JSON.stringify(app.srs));
   }
 
   function loadScript(src) {
@@ -193,7 +210,9 @@
   function showLanding() {
     app.set = null;
     app.checks = [];
+    app.srs = {};
     app.quizActive = false;
+    app.reviewActive = false;
     app.pinyinPracticeActive = false;
     app.landingActive = true;
 
@@ -212,6 +231,25 @@
     elements.categoryRoot.replaceChildren();
     elements.tocGrid.replaceChildren();
     updateSubjectMenuActive('');
+  }
+
+  function updateLandingUrl() {
+    const url = new URL(window.location.href);
+    const shouldUpdate = url.searchParams.has('set') || Boolean(url.hash);
+
+    url.searchParams.delete('set');
+    url.hash = '';
+
+    if (shouldUpdate) {
+      history.pushState(null, document.title, url);
+    }
+  }
+
+  function goToLanding() {
+    closeMenu();
+    if (!app.landingActive) showLanding();
+    updateLandingUrl();
+    window.scrollTo({ top: 0 });
   }
 
   function updateSetUrl(setId) {
@@ -236,8 +274,10 @@
 
     app.set = nextSet;
     app.removedKeys = loadRemovedKeys();
+    app.srs = loadSrsStore();
     app.hideChecked = localStorage.getItem(setScopedKey('hide-checked')) === '1';
     app.quizActive = false;
+    app.reviewActive = false;
     app.pinyinPracticeActive = false;
     app.landingActive = false;
     document.body.classList.remove('pinyin-practice-active');
@@ -402,7 +442,8 @@
       checkedKeys: getCheckedKeys(),
       removedKeys: [...app.removedKeys],
       hideChecked: app.hideChecked,
-      version: 2
+      srs: app.srs,
+      version: 3
     };
   }
 
@@ -424,6 +465,12 @@
     app.hideChecked = Boolean(state.hideChecked);
     localStorage.setItem(setScopedKey('hide-checked'), app.hideChecked ? '1' : '0');
     saveRemovedKeys();
+
+    if (state.srs && typeof state.srs === 'object') {
+      app.srs = state.srs;
+      saveSrsStore();
+    }
+
     applyFilters();
   }
 
@@ -466,6 +513,7 @@
     elements.pinyinPracticeButton.textContent = app.pinyinPracticeActive ? '쓰기 연습 종료' : '쓰기 연습 모드';
     elements.pinyinPracticeButton.setAttribute('aria-pressed', app.pinyinPracticeActive ? 'true' : 'false');
     elements.quizModeButton.textContent = app.quizActive ? '퀴즈 종료' : '퀴즈 모드';
+    updateReviewButton();
   }
 
   function getCurrentCategoryId() {
@@ -476,17 +524,29 @@
 
   function setPanelHidden(panel, hidden) {
     panel.classList.toggle('hidden', hidden);
-    if (panel === elements.quizPanel) panel.hidden = hidden;
+    if (panel === elements.quizPanel || panel === elements.reviewPanel) panel.hidden = hidden;
   }
 
-  function updateViewClasses({ list = false, quiz = false } = {}) {
+  function updateViewClasses({ list = false, quiz = false, review = false } = {}) {
     document.body.classList.toggle('has-list-view', Boolean(list));
     document.body.classList.toggle('is-quiz-mode', Boolean(quiz));
+    document.body.classList.toggle('is-review-mode', Boolean(review));
   }
 
   function applyView() {
     const panels = [...document.querySelectorAll('main > .panel')];
     const categories = [...document.querySelectorAll('.category')];
+
+    if (app.reviewActive) {
+      updateViewClasses({ review: true });
+      panels.forEach((panel) => setPanelHidden(panel, panel !== elements.reviewPanel));
+      categories.forEach((section) => section.classList.add('hidden'));
+      elements.navBar.hidden = false;
+      elements.navTitle.textContent = '복습 모드';
+      return;
+    }
+
+    setPanelHidden(elements.reviewPanel, true);
 
     if (app.quizActive) {
       updateViewClasses({ quiz: true });
@@ -562,6 +622,8 @@
 
   function enterQuizMode() {
     app.quizActive = true;
+    app.reviewActive = false;
+    if (reviewController) reviewController.reset();
     setPinyinPracticeActive(false);
     if (location.hash) {
       history.replaceState(null, document.title, location.pathname + location.search);
@@ -573,6 +635,92 @@
   function exitQuizMode() {
     app.quizActive = false;
     quizController.reset();
+    applyFilters();
+    window.scrollTo({ top: 0 });
+  }
+
+  function shuffle(items) {
+    const result = items.slice();
+    for (let i = result.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+  }
+
+  function getDueWords() {
+    if (!app.set) return { due: [], fresh: [] };
+
+    const at = Date.now();
+    const due = [];
+    const fresh = [];
+
+    app.set.categories.forEach((category) => {
+      category.words.forEach((word) => {
+        if (app.removedKeys.has(word.key)) return;
+
+        const card = app.srs[word.key] || null;
+        const entry = { ...word, category: category.title, srs: card };
+        if (!card) {
+          fresh.push(entry);
+        } else if (window.HSKReview.isDue(card, at)) {
+          due.push(entry);
+        }
+      });
+    });
+
+    return { due, fresh };
+  }
+
+  function buildReviewQueue() {
+    const { due, fresh } = getDueWords();
+    const newCards = fresh.slice(0, window.HSKReview.NEW_PER_SESSION);
+    return [...shuffle(due), ...newCards];
+  }
+
+  function reviewDueCount() {
+    const { due, fresh } = getDueWords();
+    return due.length + Math.min(fresh.length, window.HSKReview.NEW_PER_SESSION);
+  }
+
+  function gradeReviewWord(word, card) {
+    app.srs[word.key] = card;
+    saveSrsStore();
+    scheduleCloudSave();
+  }
+
+  function updateReviewButton() {
+    if (!elements.reviewButton) return;
+
+    if (app.reviewActive) {
+      elements.reviewButton.textContent = '복습 종료';
+      elements.reviewButton.setAttribute('aria-pressed', 'true');
+      return;
+    }
+
+    elements.reviewButton.setAttribute('aria-pressed', 'false');
+    const count = app.set ? reviewDueCount() : 0;
+    elements.reviewButton.textContent = count > 0 ? `복습 ${count}` : '복습';
+  }
+
+  function enterReviewMode() {
+    if (!app.set) return;
+
+    app.reviewActive = true;
+    app.quizActive = false;
+    if (quizController) quizController.reset();
+    setPinyinPracticeActive(false);
+    if (location.hash) {
+      history.replaceState(null, document.title, location.pathname + location.search);
+    }
+    reviewController.start();
+    applyFilters();
+    window.scrollTo({ top: 0 });
+  }
+
+  function exitReviewMode() {
+    app.reviewActive = false;
+    if (reviewController) reviewController.reset();
     applyFilters();
     window.scrollTo({ top: 0 });
   }
@@ -779,6 +927,16 @@
   }
 
   function bindStaticEvents() {
+    elements.pageTitle.tabIndex = 0;
+    elements.pageTitle.setAttribute('role', 'button');
+    elements.pageTitle.setAttribute('aria-label', '처음 화면으로 이동');
+    elements.pageTitle.addEventListener('click', goToLanding);
+    elements.pageTitle.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      goToLanding();
+    });
+
     elements.setSelector.addEventListener('change', () => {
       loadVocabularySet(elements.setSelector.value);
     });
@@ -799,6 +957,11 @@
     });
 
     elements.backToTocButton.addEventListener('click', () => {
+      if (app.reviewActive) {
+        exitReviewMode();
+        return;
+      }
+
       if (app.quizActive) {
         exitQuizMode();
         return;
@@ -821,6 +984,10 @@
 
     window.addEventListener('hashchange', () => {
       if (app.quizActive) app.quizActive = false;
+      if (app.reviewActive) {
+        app.reviewActive = false;
+        if (reviewController) reviewController.reset();
+      }
       applyFilters();
       window.scrollTo({ top: 0 });
     });
@@ -902,6 +1069,7 @@
     elements.pinyinPracticeButton.addEventListener('click', () => {
       if (!supportsPinyinPractice()) return;
       if (app.quizActive) exitQuizMode();
+      if (app.reviewActive) exitReviewMode();
       setPinyinPracticeActive(!app.pinyinPracticeActive);
       applyFilters();
     });
@@ -911,6 +1079,14 @@
         exitQuizMode();
       } else {
         enterQuizMode();
+      }
+    });
+
+    elements.reviewButton.addEventListener('click', () => {
+      if (app.reviewActive) {
+        exitReviewMode();
+      } else {
+        enterReviewMode();
       }
     });
 
@@ -970,6 +1146,14 @@
       getWords: getQuizWords,
       getSet: () => app.set,
       onCheckWord: (word, checked) => setWordChecked(word.key, checked)
+    });
+
+    reviewController = window.HSKReview.createReviewController({
+      getQueue: buildReviewQueue,
+      getSet: () => app.set,
+      speak: speakStudyText,
+      onGrade: gradeReviewWord,
+      onExit: exitReviewMode
     });
 
     try {
