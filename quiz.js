@@ -5,6 +5,22 @@
     return items[Math.floor(Math.random() * items.length)];
   }
 
+  function shuffle(items) {
+    const copy = items.slice();
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = copy[i];
+      copy[i] = copy[j];
+      copy[j] = tmp;
+    }
+    return copy;
+  }
+
+  // 병음 입력 모드를 제외한 나머지(단어→뜻, 뜻→단어, 읽기→단어)는 4지선다로 출제.
+  function isChoiceMode(mode) {
+    return !isPinyinInputMode(mode);
+  }
+
   function setHidden(element, hidden) {
     if (!element) return;
     element.hidden = hidden;
@@ -83,13 +99,18 @@
       answer: document.getElementById('quizAnswer'),
       showAnswer: document.getElementById('showQuizAnswer'),
       next: document.getElementById('nextQuiz'),
-      check: document.getElementById('checkQuizWord')
+      check: document.getElementById('checkQuizWord'),
+      choices: document.getElementById('quizChoices')
     };
 
     let currentWord = null;
     let answerVisible = false;
     let inputSubmitted = false;
     let inputCorrect = false;
+    let currentChoices = [];
+    let choiceAnswered = false;
+    let choiceCorrect = false;
+    let choiceSelectedKey = null;
 
     function resetPinyinInput() {
       inputSubmitted = false;
@@ -112,6 +133,7 @@
       setHidden(elements.empty, false);
       setHidden(elements.card, true);
       setHidden(elements.inputForm, true);
+      setHidden(elements.choices, true);
       setHidden(elements.feedback, true);
       elements.empty.textContent = message;
       elements.showAnswer.disabled = true;
@@ -129,6 +151,7 @@
       const mode = elements.mode.value;
       const hint = formatHint(currentWord, mode);
       const inputMode = isPinyinInputMode(mode);
+      const choiceMode = !inputMode;
 
       setHidden(elements.empty, true);
       setHidden(elements.card, false);
@@ -137,21 +160,68 @@
       elements.reading.textContent = hint || '';
       elements.answer.textContent = formatAnswer(currentWord, mode);
       setHidden(elements.inputForm, !inputMode);
-      setHidden(elements.feedback, !inputMode);
+      setHidden(elements.choices, !choiceMode);
 
       if (inputMode) {
+        setHidden(elements.feedback, false);
         elements.feedback.textContent = inputSubmitted
           ? (inputCorrect ? '맞았습니다.' : '다시 확인해보세요.')
           : '';
         elements.feedback.className = `quiz-feedback${inputSubmitted ? (inputCorrect ? ' is-correct' : ' is-incorrect') : ''}`;
         elements.submitPinyin.textContent = inputSubmitted && inputCorrect ? '다음' : '확인';
+      } else {
+        renderChoices(mode);
+        setHidden(elements.feedback, !choiceAnswered);
+        if (choiceAnswered) {
+          elements.feedback.textContent = choiceCorrect
+            ? '맞았습니다.'
+            : `정답: ${formatAnswer(currentWord, mode)}`;
+          elements.feedback.className = `quiz-feedback ${choiceCorrect ? 'is-correct' : 'is-incorrect'}`;
+        }
       }
 
-      setHidden(elements.answer, !answerVisible);
-      elements.showAnswer.disabled = false;
+      setHidden(elements.answer, choiceMode || !answerVisible);
+      elements.showAnswer.disabled = choiceMode && choiceAnswered;
       elements.next.disabled = false;
       elements.check.disabled = false;
       elements.check.textContent = currentWord.checked ? '체크 해제' : '체크하기';
+    }
+
+    // 정답 1개 + 보기 텍스트가 겹치지 않는 오답 3개를 섞어 4지선다 보기를 만든다.
+    function buildChoices(word, mode) {
+      const seen = new Set([formatAnswer(word, mode)]);
+      const distractors = [];
+      const addFrom = (list) => {
+        shuffle(list).forEach((candidate) => {
+          if (distractors.length >= 3) return;
+          if (candidate.key === word.key) return;
+          const text = formatAnswer(candidate, mode);
+          if (seen.has(text)) return;
+          seen.add(text);
+          distractors.push(candidate);
+        });
+      };
+      addFrom(getWords(elements.scope.value));
+      if (distractors.length < 3) addFrom(getWords('all'));
+      return shuffle([word].concat(distractors));
+    }
+
+    function renderChoices(mode) {
+      if (!elements.choices) return;
+      elements.choices.replaceChildren();
+      currentChoices.forEach((word) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'quiz-choice';
+        button.dataset.key = word.key;
+        button.textContent = formatAnswer(word, mode);
+        if (choiceAnswered) {
+          button.disabled = true;
+          if (word.key === currentWord.key) button.classList.add('is-correct');
+          else if (word.key === choiceSelectedKey) button.classList.add('is-wrong');
+        }
+        elements.choices.appendChild(button);
+      });
     }
 
     function nextQuestion() {
@@ -164,6 +234,12 @@
 
       currentWord = getRandomItem(pool);
       answerVisible = false;
+      choiceAnswered = false;
+      choiceCorrect = false;
+      choiceSelectedKey = null;
+      currentChoices = isChoiceMode(elements.mode.value)
+        ? buildChoices(currentWord, elements.mode.value)
+        : [];
       resetPinyinInput();
       renderCurrent();
       focusPinyinInput();
@@ -183,16 +259,39 @@
     function reset() {
       currentWord = null;
       answerVisible = false;
+      choiceAnswered = false;
+      choiceCorrect = false;
+      choiceSelectedKey = null;
+      currentChoices = [];
       resetPinyinInput();
       setHidden(elements.answer, true);
       setHidden(elements.inputForm, true);
+      setHidden(elements.choices, true);
       setHidden(elements.feedback, true);
     }
 
     elements.showAnswer.addEventListener('click', () => {
+      if (isChoiceMode(elements.mode.value)) {
+        choiceAnswered = true;
+        answerVisible = true;
+        renderCurrent();
+        return;
+      }
       answerVisible = true;
       renderCurrent();
     });
+
+    if (elements.choices) {
+      elements.choices.addEventListener('click', (event) => {
+        const button = event.target.closest('.quiz-choice');
+        if (!button || !currentWord || choiceAnswered) return;
+        choiceSelectedKey = button.dataset.key;
+        choiceCorrect = choiceSelectedKey === currentWord.key;
+        choiceAnswered = true;
+        answerVisible = true;
+        renderCurrent();
+      });
+    }
 
     elements.next.addEventListener('click', nextQuestion);
     elements.mode.addEventListener('change', nextQuestion);

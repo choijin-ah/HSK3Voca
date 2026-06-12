@@ -316,6 +316,16 @@ tbody tr:hover{background:var(--soft-2)}
 .quiz-feedback.is-correct{color:var(--ok)}
 .quiz-feedback.is-incorrect{color:var(--warn)}
 .quiz-answer{border-top:1px solid var(--line);margin-top:8px;padding-top:14px;font-size:22px;font-weight:800}
+.quiz-choices{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+.quiz-choices[hidden]{display:none}
+.quiz-choice{
+  justify-content:flex-start;text-align:left;padding:14px 16px;font-size:17px;font-weight:700;
+  border:1px solid var(--line-strong);border-radius:12px;background:var(--surface);min-height:56px
+}
+.quiz-choice:hover:not(:disabled){border-color:var(--accent);background:var(--soft-2)}
+.quiz-choice:disabled{opacity:1;cursor:default}
+.quiz-choice.is-correct{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 16%,var(--surface));color:var(--ok)}
+.quiz-choice.is-wrong{border-color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,var(--surface));color:var(--warn)}
 .quiz-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 
 /* ===== Review (SRS) ===== */
@@ -397,7 +407,7 @@ body.pinyin-practice-active .pinyin-practice-input{display:block}
   .progress{margin-left:0}
 }
 @media (max-width:480px){.card-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}}
-@media (max-width:480px){.quiz-input{align-items:stretch;flex-direction:column}.quiz-input input{min-width:0;width:100%}.quiz-input button{width:100%}}
+@media (max-width:480px){.quiz-input{align-items:stretch;flex-direction:column}.quiz-input input{min-width:0;width:100%}.quiz-input button{width:100%}.quiz-choices{grid-template-columns:1fr}}
 
 @media (prefers-reduced-motion:reduce){
   *{transition-duration:.01ms!important;animation-duration:.01ms!important}

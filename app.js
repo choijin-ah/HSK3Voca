@@ -840,13 +840,34 @@
     bindRenderedChecks();
   }
 
+  function remainingWordCount(category) {
+    return category.words.reduce((total, word) => total + (app.removedKeys.has(word.key) ? 0 : 1), 0);
+  }
+
   function renderTocCard(category) {
+    const remaining = remainingWordCount(category);
     const link = createElement('a', 'toc-card');
+    link.dataset.catId = category.id;
     link.setAttribute('href', `#${encodeURIComponent(category.id)}`);
+    // 단어를 모두 지운 목차는 숨기고, 개수는 남은 단어 기준으로 표시.
+    link.classList.toggle('hidden', remaining === 0);
 
     link.appendChild(createElement('span', 'toc-title', category.title));
-    link.appendChild(createElement('span', 'toc-count', `${category.words.length}개`));
+    link.appendChild(createElement('span', 'toc-count', `${remaining}개`));
     return link;
+  }
+
+  // 지우기/복원은 applyFilters만 호출하므로(재렌더 X), 목차 개수·표시를 여기서 갱신한다.
+  function updateTocCounts() {
+    const byId = new Map(setCategories().map((category) => [category.id, category]));
+    elements.tocGrid.querySelectorAll('.toc-card').forEach((card) => {
+      const category = byId.get(card.dataset.catId);
+      if (!category) return;
+      const remaining = remainingWordCount(category);
+      const count = card.querySelector('.toc-count');
+      if (count) count.textContent = `${remaining}개`;
+      card.classList.toggle('hidden', remaining === 0);
+    });
   }
 
   function renderCategory(category) {
@@ -1185,6 +1206,7 @@
       card.classList.toggle('hidden', Boolean(hiddenByChecked || hiddenByRemoved));
     });
 
+    updateTocCounts();
     applyView();
     fitVisibleFronts();
     updateProgress();
